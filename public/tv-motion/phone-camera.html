@@ -26,7 +26,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket,stream,pose,frame=0,sequence=0,active=false,session=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,calibration=[],lastJumpAt=0;
+let socket,stream,pose,frame=0,sequence=0,active=false,session=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,baselineTorso=null,calibration=[],lastJumpAt=0,jumpArmed=true,baselineKneeRatio=null;
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
@@ -39,13 +39,13 @@ function classify(points){
   const kneeY=(leftKnee.y+rightKnee.y)/2;
   const torso=Math.max(0.05,hipY-shoulderY);
   const kneeRatio=(kneeY-hipY)/torso;
-  const isSquatting=kneeRatio<0.65;
+  const isSquatting=baselineKneeRatio===null?kneeRatio<0.65:kneeRatio<baselineKneeRatio*0.72;
   if(baselineHip===null){
     if(!isSquatting){
-      calibration.push(hipY);
+      calibration.push({hipY,torso,kneeRatio});
       if(calibration.length>=45){
-        const ordered=calibration.slice().sort((a,b)=>a-b);
-        baselineHip=ordered[Math.floor(ordered.length/2)];
+        const median=key=>calibration.map(sample=>sample[key]).sort((a,b)=>a-b)[Math.floor(calibration.length/2)];
+        baselineHip=median('hipY');baselineTorso=median('torso');baselineKneeRatio=median('kneeRatio');
         status('站姿标定完成，可以开始体感操作');
       }else if(calibration.length%10===0){
         status('标定站姿中：'+calibration.length+'/45 帧');
@@ -57,8 +57,10 @@ function classify(points){
   // Compare hip displacement against the calibrated standing position,
   // normalized by torso length to reduce sensitivity to camera distance.
   const now=performance.now();
-  if((baselineHip-hipY)/torso>0.22&&now-lastJumpAt>850){
-    lastJumpAt=now;
+  const rise=(baselineHip-hipY)/baselineTorso;
+  if(rise<0.10)jumpArmed=true;
+  if(jumpArmed&&rise>0.22&&now-lastJumpAt>850){
+    jumpArmed=false;lastJumpAt=now;
     return 'JUMP';
   }
   const center=(leftShoulder.x+rightShoulder.x)/2;
@@ -68,7 +70,7 @@ function classify(points){
   return 'NEUTRAL';
 }
 function recalibrate(){
-  baselineHip=null;calibration=[];lastJumpAt=0;
+  baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;
   stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;
   status('请站直并保持身体稳定，正在重新标定');
 }
@@ -92,7 +94,7 @@ async function loop(token){
 }
 function stop(){
   session++;
-  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;calibration=[];
+  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
   if(pose){void pose.close();pose=undefined}
