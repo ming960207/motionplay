@@ -9,7 +9,7 @@ main{max-width:650px;margin:auto}input,button,select{font:inherit;padding:12px;b
 input{background:#182e45;color:#fff;border:1px solid #526c82;width:100%;box-sizing:border-box}
 select{background:#182e45;color:#fff;border:1px solid #526c82;padding:10px;border-radius:8px;margin:8px 0}button{background:#25618a;color:white;border:0;margin:10px 5px 10px 0}
 video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:scaleX(-1)}
-#status{color:#9fe5cf}small{color:#a8b9c9}
+#status{color:#9fe5cf}small{color:#a8b9c9}progress{width:100%;height:12px;accent-color:#55bfa9}
 </style>
 </head>
 <body><main>
@@ -21,7 +21,8 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <button id="start">连接并开启摄像头</button><button id="calibrate" disabled>重新标定站姿</button><button id="stop" disabled>停止</button>
 <p id="status" role="status">未连接</p>
 <video id="video" autoplay muted playsinline></video>
-<p>动作：<strong id="action">—</strong></p>
+<p>动作：<strong id="action">—</strong>　识别状态：<strong id="tracking">未开始</strong></p>
+<p>站姿标定：<progress id="calibration-progress" max="45" value="0"></progress></p>
 <small>请将全身放入画面，保持站立约 2 秒完成标定。身体整体向上移动触发 JUMP，下蹲触发 DUCK，左右倾斜触发 LEFT/RIGHT。摄像头位置固定，避免移动手机；该算法仍需实机验证。</small>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
@@ -43,11 +44,11 @@ function classify(points){
   const isSquatting=baselineKneeRatio===null?kneeRatio<0.65:kneeRatio<baselineKneeRatio*0.72;
   if(baselineHip===null){
     if(!isSquatting){
-      calibration.push({hipY,torso,kneeRatio});
+      calibration.push({hipY,torso,kneeRatio});$('calibration-progress').value=calibration.length;
       if(calibration.length>=45){
         const hipValues=calibration.map(sample=>sample.hipY);
         if(Math.max(...hipValues)-Math.min(...hipValues)>0.045){
-          calibration=[];status('标定期间身体移动，请保持站直重新标定');return 'NEUTRAL';
+          calibration=[];$('calibration-progress').value=0;status('标定期间身体移动，请保持站直重新标定');return 'NEUTRAL';
         }
         const median=key=>calibration.map(sample=>sample[key]).sort((a,b)=>a-b)[Math.floor(calibration.length/2)];
         baselineHip=median('hipY');baselineTorso=median('torso');baselineKneeRatio=median('kneeRatio');
@@ -55,7 +56,7 @@ function classify(points){
       }else if(calibration.length%10===0){
         status('标定站姿中：'+calibration.length+'/45 帧');
       }
-    }else calibration=[];
+    }else{calibration=[];$('calibration-progress').value=0}
     return 'NEUTRAL';
   }
   if(isSquatting)return 'DUCK'
@@ -75,13 +76,14 @@ function classify(points){
   return 'NEUTRAL';
 }
 function recalibrate(){
-  baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;
+  baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;$('calibration-progress').value=0;
   stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';lastSent=0;
   status('请站直并保持身体稳定，正在重新标定');
 }
 async function onResults(result){
   if(!active)return;
   const detected=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
+  $('tracking').textContent=!result.poseLandmarks?'未识别到人体':baselineHip===null?'正在标定':'跟踪正常';
   if(detected===candidate)candidateCount++;else{candidate=detected;candidateCount=1}
   if(candidateCount>= (candidate==='JUMP'||candidate==='NEUTRAL'?1:3))stableAction=candidate;
   const action=stableAction;
@@ -99,7 +101,7 @@ async function loop(token){
 }
 function stop(){
   session++;
-  active=false;cancelAnimationFrame(frame);$('action').textContent='—';stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
+  active=false;cancelAnimationFrame(frame);$('action').textContent='—';$('tracking').textContent='未开始';$('calibration-progress').value=0;stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   $('video').srcObject=null;
   socket?.close();socket=undefined;
