@@ -25,7 +25,7 @@ class MainActivity : Activity() {
     private fun configureServer() {
         val field = EditText(this)
         field.setSingleLine()
-        field.setText(getPreferences(MODE_PRIVATE).getString("tv_url", "http://192.168.1.100:3000/tv-motion/tv.html"))
+        field.setText(getPreferences(MODE_PRIVATE).getString("tv_url", "http://192.168.1.100:3000/tv-motion/index.html"))
         AlertDialog.Builder(this)
             .setTitle("输入 MotionPlay 服务地址")
             .setView(field)
