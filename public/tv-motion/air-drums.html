@@ -1,12 +1,26 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MotionPlay Air Drums</title>
 <style>body{margin:0;background:#0c1829;color:#fff;font:20px system-ui;text-align:center}h1{margin:2vh}#status{color:#9fd6e0}code{font-size:14px;color:#9fe5cf}main{height:68vh;display:grid;grid-template-columns:repeat(3,1fr);gap:3vw;padding:3vw}.pad{border:3px solid #6586a3;border-radius:25px;display:grid;place-items:center;font-size:clamp(20px,3vw,42px);background:#18324d}.pad.hit{background:#398f87;transform:scale(1.04)}button{font:inherit;padding:10px 25px}</style>
-<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><div>配对码：<code id="code">—</code>　得分：<strong id="score">0</strong></div>
+<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><button id="audio">开启鼓声（OK）</button><div>配对码：<code id="code">—</code>　得分：<strong id="score">0</strong></div>
 <main><div class="pad" id="left">左鼓<br>LEFT</div><div class="pad" id="center">主鼓<br>JUMP</div><div class="pad" id="right">右鼓<br>RIGHT</div></main><button id="reset">重置分数</button>
 <script>
-const $=id=>document.getElementById(id);let score=0,ws,lastAction='NEUTRAL',lastHit=0;
+const $=id=>document.getElementById(id);let score=0,ws,lastAction='NEUTRAL',lastHit=0,audioContext=null,connected=false;
 const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
-function hit(action){const id={LEFT:'left',JUMP:'center',RIGHT:'right',DUCK:'center'}[action];if(!id)return;const now=performance.now();if(action===lastAction&&now-lastHit<250)return;lastAction=action;lastHit=now;score++;$('score').textContent=score;$(id).classList.add('hit');setTimeout(()=>$(id).classList.remove('hit'),140)}
-function connect(){ws=new WebSocket(endpoint);ws.onopen=()=>ws.send(JSON.stringify({type:'create'}));ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机配对'}else if(m.type==='connected')$('status').textContent='已连接';else if(m.type==='disconnected')$('status').textContent='手机已断开';else if(m.type==='motion'){if(m.action==='NEUTRAL')lastAction='NEUTRAL';else hit(m.action)}else if(m.type==='error')$('status').textContent=m.message};ws.onclose=()=>$('status').textContent='服务已断开'}
-$('reset').onclick=()=>{score=0;$('score').textContent='0'};
-document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')hit('LEFT');if(e.key==='ArrowRight')hit('RIGHT');if(e.key==='ArrowUp'||e.key==='Enter')hit('JUMP')});connect();
+function sound(action){
+  if(!audioContext||audioContext.state!=='running')return;
+  const now=audioContext.currentTime;
+  const osc=audioContext.createOscillator(),gain=audioContext.createGain();
+  osc.type='triangle';osc.frequency.setValueAtTime(action==='LEFT'?160:action==='RIGHT'?220:95,now);
+  osc.frequency.exponentialRampToValueAtTime(45,now+0.13);
+  gain.gain.setValueAtTime(0.18,now);gain.gain.exponentialRampToValueAtTime(0.001,now+0.16);
+  osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+0.17);
+}
+async function enableAudio(){
+  if(!audioContext)audioContext=new (window.AudioContext||window.webkitAudioContext)();
+  await audioContext.resume();$('audio').textContent='鼓声已开启';
+}
+function hit(action){const id={LEFT:'left',JUMP:'center',RIGHT:'right',DUCK:'center'}[action];if(!id)return;const now=performance.now();if(action===lastAction&&now-lastHit<250)return;lastAction=action;lastHit=now;score++;sound(action);$('score').textContent=score;$(id).classList.add('hit');setTimeout(()=>$(id).classList.remove('hit'),140)}
+function connect(){ws=new WebSocket(endpoint);ws.onopen=()=>ws.send(JSON.stringify({type:'create'}));ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机配对'}else if(m.type==='connected'){connected=true;lastAction='NEUTRAL';$('status').textContent='已连接'}else if(m.type==='disconnected'){connected=false;lastAction='NEUTRAL';$('status').textContent='手机已断开'}else if(m.type==='motion'&&connected){if(m.action==='NEUTRAL')lastAction='NEUTRAL';else hit(m.action)}else if(m.type==='error')$('status').textContent=m.message};ws.onclose=()=>{connected=false;$('status').textContent='服务已断开'}}
+$('reset').onclick=()=>{score=0;lastAction='NEUTRAL';$('score').textContent='0'};
+$('audio').onclick=()=>enableAudio().catch(error=>$('status').textContent='音频启动失败：'+error.message);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')hit('LEFT');if(e.key==='ArrowRight')hit('RIGHT');if(e.key==='ArrowUp')hit('JUMP');if(e.key==='Enter'&&!audioContext)enableAudio().catch(error=>$('status').textContent=error.message)});connect();
 </script></html>
