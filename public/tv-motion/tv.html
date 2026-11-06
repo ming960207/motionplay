@@ -67,10 +67,17 @@ function tick(now){
   if(obstacleX<-.08){obstacleX=1.1;obstacleHigh=Math.random()<.5;passed=false}
   const obstacle=$('obstacle');obstacle.classList.toggle('high',obstacleHigh);
   obstacle.style.left=(obstacleX*100)+'%';
-  if(obstacleX<.23&&obstacleX>.12){
-    if(obstacleHigh?(!ducking||jumping):jumpOffset<70){playing=false;announce('游戏结束 · 按 OK 重试');return}
+  // Compare actual rendered hitboxes instead of fixed percentages: works
+  // across TV resolutions and preserves the gap above the ducking player.
+  const playerRect=player.getBoundingClientRect();
+  const obstacleRect=obstacle.getBoundingClientRect();
+  const overlap=playerRect.left<obstacleRect.right&&playerRect.right>obstacleRect.left&&
+    playerRect.top<obstacleRect.bottom&&playerRect.bottom>obstacleRect.top;
+  if(overlap){playing=false;announce('游戏结束 · 按 OK 重试');return}
+  if(!passed&&obstacleRect.right<playerRect.left){
+    passed=true;score++;best=Math.max(best,score);
+    $('score').textContent=score;$('best').textContent=best;
   }
-  if(!passed&&obstacleX<.12){passed=true;score++;best=Math.max(best,score);$('score').textContent=score;$('best').textContent=best}
 }
 $('start').onclick=reset;
 document.addEventListener('keydown',e=>{
