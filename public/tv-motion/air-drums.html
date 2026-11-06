@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MotionPlay Air Drums</title>
-<style>body{margin:0;background:#0c1829;color:#fff;font:20px system-ui;text-align:center}h1{margin:2vh}#status{color:#9fd6e0}code{font-size:14px;color:#9fe5cf}main{height:38vh;display:grid;grid-template-columns:repeat(3,1fr);gap:3vw;padding:3vw}.pad{border:3px solid #6586a3;border-radius:25px;display:grid;place-items:center;font-size:clamp(20px,3vw,42px);background:#18324d}.pad.hit{background:#398f87;transform:scale(1.04)}button{font:inherit;padding:10px 25px;background:#245779;color:white;border:2px solid #6387a5;border-radius:12px}button:focus-visible{outline:4px solid #9fe5cf}#song{color:#a9c2d6;font-size:16px}#beat{height:16px;margin:8px 4vw;background:#1b3854;border-radius:12px;overflow:hidden}#pulse{height:100%;width:0;background:#9fe5cf}#track{position:relative;height:24vh;margin:10px 3vw;border:2px solid #426884;border-radius:14px;background:repeating-linear-gradient(90deg,#152c44 0,#152c44 calc(33.333% - 1px),#426884 calc(33.333% - 1px),#426884 33.333%);overflow:hidden}#notes{position:absolute;inset:0;pointer-events:none}.note{position:absolute;width:19%;height:12px;background:#efb879;border-radius:8px;box-shadow:0 0 10px #efb87988}#line{position:absolute;bottom:12%;left:0;right:0;height:3px;background:#9fe5cf}input[type=file]{font-size:14px;max-width:240px}.pad{transition:transform .08s,background .12s}#stats{margin:12px}#hint{font-size:15px;color:#aac4d9;margin:8px}#feedback{font-size:22px;min-height:30px;color:#9fe5cf}</style>
-<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><button id="audio">开启鼓声</button><label>本地歌曲 <input id="file" type="file" accept="audio/*"></label><button id="play" disabled>播放歌曲（OK）</button><button id="stop">停止歌曲</button><div id="song">选择本地音频，自动分析节奏；不上传音乐</div><div id="beat"><div id="pulse"></div></div><div>配对码：<code id="code">—</code><div id="stats">得分：<strong id="score">0</strong>　节奏命中：<strong id="accuracy">0</strong>　连击：<strong id="combo">0</strong>　最高连击：<strong id="best">0</strong></div><div id="feedback" aria-live="polite">等待击鼓</div></div>
+<style>body{margin:0;background:#0c1829;color:#fff;font:20px system-ui;text-align:center}h1{margin:2vh}#status{color:#9fd6e0}code{font-size:14px;color:#9fe5cf}main{height:38vh;display:grid;grid-template-columns:repeat(3,1fr);gap:3vw;padding:3vw}.pad{border:3px solid #6586a3;border-radius:25px;display:grid;place-items:center;font-size:clamp(20px,3vw,42px);background:#18324d}.pad.hit{background:#398f87;transform:scale(1.04)}button{font:inherit;padding:10px 25px;background:#245779;color:white;border:2px solid #6387a5;border-radius:12px}button:focus-visible{outline:4px solid #9fe5cf}#song{color:#a9c2d6;font-size:16px}#beat{height:16px;margin:8px 4vw;background:#1b3854;border-radius:12px;overflow:hidden}#pulse{height:100%;width:0;background:#9fe5cf}#track{position:relative;height:24vh;margin:10px 3vw;border:2px solid #426884;border-radius:14px;background:repeating-linear-gradient(90deg,#152c44 0,#152c44 calc(33.333% - 1px),#426884 calc(33.333% - 1px),#426884 33.333%);overflow:hidden}#notes{position:absolute;inset:0;pointer-events:none}.note{position:absolute;width:19%;height:12px;background:#efb879;border-radius:8px;box-shadow:0 0 10px #efb87988}#line{position:absolute;bottom:12%;left:0;right:0;height:3px;background:#9fe5cf}input[type=file]{font-size:14px;max-width:240px}select{background:#18324d;color:white;border:1px solid #6586a3;padding:8px;border-radius:8px}.pad{transition:transform .08s,background .12s}#stats{margin:12px}#hint{font-size:15px;color:#aac4d9;margin:8px}#feedback{font-size:22px;min-height:30px;color:#9fe5cf}</style>
+<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><button id="audio">开启鼓声</button><label>本地歌曲 <input id="file" type="file" accept="audio/*"></label><label>难度 <select id="difficulty"><option value="easy">简单</option><option value="normal" selected>标准</option><option value="hard">困难</option></select></label><button id="play" disabled>播放歌曲（OK）</button><button id="stop">停止歌曲</button><div id="song">选择本地音频，自动分析节奏；不上传音乐</div><div id="beat"><div id="pulse"></div></div><div>配对码：<code id="code">—</code><div id="stats">得分：<strong id="score">0</strong>　节奏命中：<strong id="accuracy">0</strong>　连击：<strong id="combo">0</strong>　最高连击：<strong id="best">0</strong></div><div id="feedback" aria-live="polite">等待击鼓</div></div>
 <div id="track"><div id="notes"></div><div id="line"></div></div><main><div class="pad" id="left">左鼓<br>LEFT</div><div class="pad" id="center">主鼓<br>JUMP / DUCK</div><div class="pad" id="right">右鼓<br>RIGHT</div></main><div id="hint">手机动作控制鼓点；遥控器 ← ↑ → 可试玩，OK 开启声音。音符落到判定线时击打对应鼓位；歌曲节奏由本地音频自动估计。</div><button id="reset">重置成绩</button>
 <script>
 const $=id=>document.getElementById(id);let score=0,combo=0,best=0,ws,lastAction='NEUTRAL',lastHit=0,audioContext=null,connected=false,flashTimers=new Map(),songBuffer=null,songSource=null,beats=[],chart=[],songStart=0,beatIndex=0,beatHits=0,misses=0,loadToken=0,animation=0;
@@ -41,7 +41,7 @@ function analyze(buffer){
 }
 function stopSong(){
   cancelAnimationFrame(animation);
-  if(songSource){songSource.onended=null;try{songSource.stop()}catch(e){if(e.name!=='InvalidStateError')throw e}songSource.disconnect();songSource=null}
+  if(songSource){const old=songSource;songSource=null;old.onended=null;try{old.stop()}catch(e){if(e.name!=='InvalidStateError')throw e}old.disconnect()}
   $('pulse').style.width='0';$('notes').replaceChildren();
 }
 function drawBeat(){
@@ -65,15 +65,17 @@ function drawBeat(){
 }
 async function playSong(){
   if(!songBuffer)throw new Error('请先选择歌曲');
-  await enableAudio();stopSong();beatIndex=0;beatHits=0;misses=0;chart=beats.map((time,i)=>({time,lane:i%3,judged:false}));$('accuracy').textContent='0';
+  await enableAudio();stopSong();beatIndex=0;beatHits=0;misses=0;const step={easy:3,normal:2,hard:1}[$('difficulty').value];
+  chart=beats.filter((_,i)=>i%step===0).map((time,i)=>({time,lane:i%3,judged:false}));$('accuracy').textContent='0';
   songSource=audioContext.createBufferSource();songSource.buffer=songBuffer;songSource.connect(audioContext.destination);
   songStart=audioContext.currentTime+.1;songSource.start(songStart);
-  songSource.onended=()=>{stopSong();$('feedback').textContent='歌曲结束 · 命中 '+beatHits+' / '+chart.length+' · 准确率 '+(chart.length?Math.round(beatHits/chart.length*100):0)+'%'};
+  const playingSource=songSource;
+  playingSource.onended=()=>{if(songSource!==playingSource)return;stopSong();$('feedback').textContent='歌曲结束 · 命中 '+beatHits+' / '+chart.length+' · 准确率 '+(chart.length?Math.round(beatHits/chart.length*100):0)+'%'};
   $('feedback').textContent='跟随节奏条击鼓';drawBeat();
 }
 $('file').onchange=async()=>{
   const file=$('file').files[0];if(!file)return;
-  const token=++loadToken;stopSong();songBuffer=null;$('play').disabled=true;
+  const token=++loadToken;stopSong();songBuffer=null;beats=[];$('play').disabled=true;
   try{
     if(file.size>80*1024*1024)throw new Error('歌曲不能超过 80MB');
     $('song').textContent='正在分析 '+file.name;
