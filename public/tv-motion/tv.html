@@ -22,7 +22,7 @@ button{font:inherit;color:#fff;background:#275777;border:1px solid #6d99b5;borde
 <script>
 const $=id=>document.getElementById(id);
 const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
-let socket,connected=false,playing=false,remoteMode=false,score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
+let socket,connected=false,playing=false,remoteMode=false,previousMotion='NEUTRAL',score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
 function announce(message){$('message').textContent=message}
 function connect(){
   if(socket&&socket.readyState<2)socket.close();
@@ -31,8 +31,8 @@ function connect(){
   socket.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机连接';announce('等待手机配对')}
-    else if(m.type==='connected'){connected=true;remoteMode=false;playing=false;$('status').textContent='手机已连接';announce('按 OK 开始游戏')}
-    else if(m.type==='motion')onMotion(m.action)
+    else if(m.type==='connected'){connected=true;remoteMode=false;previousMotion='NEUTRAL';playing=false;$('status').textContent='手机已连接';announce('按 OK 开始游戏')}
+    else if(m.type==='motion'&&connected)onMotion(m.action)
     else if(m.type==='disconnected'){connected=false;previousMotion='NEUTRAL';playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
     else if(m.type==='error'){$('status').textContent=m.message}
   };
@@ -73,7 +73,7 @@ function tick(now){
 $('start').onclick=reset;
 document.addEventListener('keydown',e=>{
   if(['Enter',' ','NumpadEnter'].includes(e.key)){e.preventDefault();reset()}
-  if(e.key==='ArrowUp'){e.preventDefault();onMotion('JUMP')}
+  if(e.key==='ArrowUp'){e.preventDefault();if(!e.repeat){previousMotion='NEUTRAL';onMotion('JUMP')}}
   if(e.key==='ArrowDown'){e.preventDefault();onMotion('DUCK')}
   if(e.key==='Escape'||e.key==='Backspace'){playing=false;announce('已暂停 · 按 OK 继续')}
 });
