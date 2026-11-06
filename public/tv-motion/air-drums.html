@@ -48,7 +48,7 @@ function drawBeat(){
   if(!songSource)return;
   const t=audioContext.currentTime-songStart+judgementOffset;
   while(beatIndex<chart.length&&chart[beatIndex].time<t-.24){
-    if(!chart[beatIndex].judged){chart[beatIndex].judged=true;misses++;combo=0;$('combo').textContent='0';$('feedback').textContent='MISS'}
+    if(!chart[beatIndex].judged){chart[beatIndex].judged=true;misses++;combo=0;$('combo').textContent='0';$('feedback').textContent='MISS · 漏击 '+misses}
     beatIndex++;
   }
   const delta=beatIndex<chart.length?chart[beatIndex].time-t:2;
@@ -69,7 +69,15 @@ async function playSong(){
   songSource=audioContext.createBufferSource();songSource.buffer=songBuffer;songSource.connect(audioContext.destination);
   songStart=audioContext.currentTime+.1;songSource.start(songStart);
   const playingSource=songSource;
-  playingSource.onended=()=>{if(songSource!==playingSource)return;stopSong();$('feedback').textContent='歌曲结束 · 命中 '+beatHits+' / '+chart.length+' · 准确率 '+(chart.length?Math.round(beatHits/chart.length*100):0)+'%'};
+  playingSource.onended=()=>{
+    if(songSource!==playingSource)return;
+    misses=chart.length-beatHits;
+    stopSong();
+    const accuracy=chart.length?Math.round(beatHits/chart.length*100):0;
+    const grade=accuracy>=95?'S':accuracy>=85?'A':accuracy>=70?'B':accuracy>=50?'C':'D';
+    $('feedback').textContent='结算 '+grade+' · 准确率 '+accuracy+'% · 命中 '+beatHits+' · 漏击 '+misses+' · 最高连击 '+best;
+    $('status').textContent='歌曲结束，可按 OK 重玩';
+  };
   $('feedback').textContent='跟随节奏条击鼓';drawBeat();
 }
 $('file').onchange=async()=>{
