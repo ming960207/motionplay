@@ -43,7 +43,7 @@ function onMotion(action){
   if(!playing)return;
   const now=performance.now();
   if(action==='JUMP'&&now>=jumpUntil)jumpUntil=now+750;
-  if(action==='DUCK')duckUntil=now+500;
+  if(action==='DUCK'&&now>=jumpUntil)duckUntil=now+500;
 }
 function reset(){
   if(!connected&&!remoteMode){remoteMode=true;$('status').textContent='遥控器试玩模式'}
@@ -65,7 +65,7 @@ function tick(now){
   const obstacle=$('obstacle');obstacle.classList.toggle('high',obstacleHigh);
   obstacle.style.left=(obstacleX*100)+'%';
   if(obstacleX<.23&&obstacleX>.12){
-    if(obstacleHigh?!ducking:jumpOffset<70){playing=false;announce('游戏结束 · 按 OK 重试');return}
+    if(obstacleHigh?(!ducking||jumping):jumpOffset<70){playing=false;announce('游戏结束 · 按 OK 重试');return}
   }
   if(!passed&&obstacleX<.12){passed=true;score++;best=Math.max(best,score);$('score').textContent=score;$('best').textContent=best}
 }
