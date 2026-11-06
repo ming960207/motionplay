@@ -18,37 +18,52 @@ if(!route||!route.startsWith('/')||route.startsWith('//')||route.includes('\\'))
 const frame=document.getElementById('game');
 frame.src=route;
 const relay=params.get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
-let socket,lastSeq=-1;
+let socket,lastSeq=-1,connected=false,frameReady=false;
+frame.addEventListener('load',()=>{frameReady=true});
 const map={JUMP:['ArrowUp','Space'],DUCK:['ArrowDown'],LEFT:['ArrowLeft'],RIGHT:['ArrowRight'],NEUTRAL:[]};
 function dispatch(action){
+  if(!connected||!frameReady)return;
   const keys=map[action];
-  if(!keys)return;
-  // Same-origin only: cross-origin frames must use a vetted postMessage adapter.
-  let target;
-  try{target=frame.contentWindow?.document}catch{return}
-  if(!target)return;
+  if(!keys||keys.length===0)return;
+  // Synthetic events only reach listeners in this same-origin frame.
+  // Game implementations using trusted keyboard events or internal pose state
+  // require an explicit MotionAction adapter in their own input layer.
+  let gameWindow,gameDocument;
+  try{
+    gameWindow=frame.contentWindow;
+    gameDocument=gameWindow.document;
+  }catch(error){
+    document.getElementById('status').textContent='游戏不是同源页面，无法桥接';
+    return;
+  }
   for(const key of keys){
-    const code=key==='Space'?'Space':key;
-    target.dispatchEvent(new KeyboardEvent('keydown',{key:key==='Space'?' ':key,code,bubbles:true}));
-    target.dispatchEvent(new KeyboardEvent('keyup',{key:key==='Space'?' ':key,code,bubbles:true}));
+    const init={key:key==='Space'?' ':key,code:key,bubbles:true,cancelable:true};
+    // Dispatch at window: most canvas games listen on window.
+    // A second document event supports document-level listeners.
+    gameWindow.dispatchEvent(new gameWindow.KeyboardEvent('keydown',init));
+    gameDocument.dispatchEvent(new gameWindow.KeyboardEvent('keydown',init));
+    gameWindow.dispatchEvent(new gameWindow.KeyboardEvent('keyup',init));
+    gameDocument.dispatchEvent(new gameWindow.KeyboardEvent('keyup',init));
   }
 }
 function connect(){
   if(socket)socket.close();
+  connected=false;lastSeq=-1;
+  document.getElementById('code').textContent='—';
   socket=new WebSocket(relay);
   socket.onopen=()=>socket.send(JSON.stringify({type:'create'}));
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='created'){document.getElementById('code').textContent=message.code;document.getElementById('status').textContent='等待手机配对'}
-    if(message.type==='connected')document.getElementById('status').textContent='手机已连接';
-    if(message.type==='disconnected')document.getElementById('status').textContent='手机已断开，控制暂停';
-    if(message.type==='motion'&&Number.isSafeInteger(message.sequence)&&message.sequence>lastSeq){
+    if(message.type==='connected'){connected=true;lastSeq=-1;document.getElementById('status').textContent='手机已连接'}
+    if(message.type==='disconnected'){connected=false;lastSeq=-1;document.getElementById('status').textContent='手机已断开，控制暂停'}
+    if(message.type==='motion'&&connected&&Number.isSafeInteger(message.sequence)&&message.sequence>lastSeq){
       lastSeq=message.sequence;
       dispatch(message.action);
     }
     if(message.type==='error')document.getElementById('status').textContent=message.message;
   };
-  socket.onclose=()=>document.getElementById('status').textContent='连接中断';
+  socket.onclose=()=>{connected=false;document.getElementById('status').textContent='连接中断'};
 }
 document.getElementById('retry').onclick=connect;
 connect();
