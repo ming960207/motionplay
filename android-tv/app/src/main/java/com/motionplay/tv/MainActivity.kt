@@ -4,6 +4,9 @@ import android.app.Activity
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
+import android.widget.Toast
 import android.widget.EditText
 import android.app.AlertDialog
 import android.view.KeyEvent
@@ -16,7 +19,15 @@ class MainActivity : Activity() {
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (request.isForMainFrame) {
+                    Toast.makeText(this@MainActivity, "页面加载失败：" + error.description, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
         setContentView(webView)
         val address = getPreferences(MODE_PRIVATE).getString("tv_url", null)
         if (address == null) configureServer() else webView.loadUrl(address)
@@ -44,7 +55,11 @@ class MainActivity : Activity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            configureServer()
+            if (webView.canGoBack()) {
+                webView.goBack()
+            } else {
+                configureServer()
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
