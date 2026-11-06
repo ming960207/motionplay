@@ -26,7 +26,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,calibration=[],lastJumpAt=0;
+let socket,stream,pose,frame=0,sequence=0,active=false,session=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,calibration=[],lastJumpAt=0;
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
@@ -85,12 +85,13 @@ async function onResults(result){
     lastAction=action;lastSent=now;
   }
 }
-async function loop(){
-  if(!active)return;
-  try{await pose.send({image:$('video')})}catch(error){status('姿态识别失败：'+error.message);stop();return}
-  if(active)frame=requestAnimationFrame(loop);
+async function loop(token){
+  if(!active||token!==session)return;
+  try{await pose.send({image:$('video')})}catch(error){if(token===session){status('姿态识别失败：'+error.message);stop()}return}
+  if(active&&token===session)frame=requestAnimationFrame(()=>loop(token));
 }
 function stop(){
+  session++;
   active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;calibration=[];
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
@@ -105,19 +106,22 @@ $('start').onclick=async()=>{
   if(!/^[0-9a-f]{32}$/.test(code)){status('请输入电视上的 32 位配对码');return}
   if(!/^wss:\/\//.test(url)&&!/^ws:\/\/localhost(?::\d+)?(?:\/|$)/.test(url)){status('请输入 wss:// 服务地址（localhost 可使用 ws://）');return}
   $('start').disabled=true;
+  const token=++session;
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
     $('video').srcObject=stream;await $('video').play();
+    if(token!==session)return;
     const PoseCtor=globalThis.Pose;
     if(!PoseCtor)throw new Error('MediaPipe Pose 加载失败');
     pose=new PoseCtor({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+file});
     pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
     pose.onResults(onResults);
     socket=new WebSocket(url);
-    socket.onopen=()=>socket.send(JSON.stringify({type:'join',code}));
-    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;recalibrate();$('stop').disabled=false;$('calibrate').disabled=false;loop()}else if(msg.type==='error'){status('连接失败：'+msg.message);stop()}else if(msg.type==='disconnected'){status('电视已断开');stop()}};
-    socket.onclose=()=>{if(active){status('连接中断');stop()}};
-    socket.onerror=()=>{status('WebSocket 连接错误');stop()};
-  }catch(error){status('启动失败：'+error.message);stop()}
+    const connection=socket;
+    connection.onopen=()=>{if(token===session)connection.send(JSON.stringify({type:'join',code}))};
+    connection.onmessage=e=>{if(token!==session)return;const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;recalibrate();$('stop').disabled=false;$('calibrate').disabled=false;loop(token)}else if(msg.type==='error'){status('连接失败：'+msg.message);stop()}else if(msg.type==='disconnected'){status('电视已断开');stop()}};
+    connection.onclose=()=>{if(token===session){status('连接中断');stop()}};
+    connection.onerror=()=>{if(token===session){status('WebSocket 连接错误');stop()}};
+  }catch(error){if(token===session){status('启动失败：'+error.message);stop()}}
 };
 </script></body></html>
