@@ -1,0 +1,22 @@
+name: TV Motion Relay Tests
+on:
+  push:
+    branches: [feature/android-tv-motion]
+    paths:
+      - 'tools/tv-motion/**'
+      - '.github/workflows/tv-motion-relay.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install relay dependencies
+        working-directory: tools/tv-motion
+        run: npm install --no-audit --no-fund
+      - name: Test WebSocket pairing and motion events
+        working-directory: tools/tv-motion
+        run: node --test test/*.test.mjs
