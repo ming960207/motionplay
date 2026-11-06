@@ -22,7 +22,7 @@ button{font:inherit;color:#fff;background:#275777;border:1px solid #6d99b5;borde
 <script>
 const $=id=>document.getElementById(id);
 const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
-let socket,connected=false,playing=false,remoteMode=false,previousMotion='NEUTRAL',score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
+let socket,connected=false,playing=false,remoteMode=false,previousMotion='NEUTRAL',lastMotionAt=0,score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
 function announce(message){$('message').textContent=message}
 function connect(){
   if(socket&&socket.readyState<2)socket.close();
@@ -32,8 +32,8 @@ function connect(){
     const m=JSON.parse(e.data);
     if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机连接';announce('等待手机配对')}
     else if(m.type==='connected'){connected=true;remoteMode=false;previousMotion='NEUTRAL';playing=false;$('status').textContent='手机已连接';announce('按 OK 开始游戏')}
-    else if(m.type==='motion'&&connected)onMotion(m.action)
-    else if(m.type==='disconnected'){connected=false;previousMotion='NEUTRAL';playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
+    else if(m.type==='motion'&&connected){lastMotionAt=performance.now();onMotion(m.action)}
+    else if(m.type==='disconnected'){connected=false;previousMotion='NEUTRAL';lastMotionAt=0;playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
     else if(m.type==='error'){$('status').textContent=m.message}
   };
   socket.onclose=()=>{connected=false;if(!remoteMode){playing=false;announce('连接中断 · 按 OK 使用遥控器试玩')}$('status').textContent=remoteMode?'遥控器试玩模式':'服务连接断开'};
@@ -48,13 +48,14 @@ function onMotion(action){
 }
 function reset(){
   if(!connected&&!remoteMode){remoteMode=true;$('status').textContent='遥控器试玩模式'}
-  jumpUntil=0;duckUntil=0;previousMotion='NEUTRAL';
+  jumpUntil=0;duckUntil=0;previousMotion='NEUTRAL';lastMotionAt=0;
   score=0;obstacleX=1.1;last=0;spawn=0;passed=false;obstacleHigh=Math.random()<.5;
   $('score').textContent='0';playing=true;announce('');
 }
 function tick(now){
   requestAnimationFrame(tick);
   const dt=last?Math.min((now-last)/1000,.05):0;last=now;
+  if(connected&&lastMotionAt&&now-lastMotionAt>2200){previousMotion='NEUTRAL';duckUntil=0;lastMotionAt=0;playing=false;announce('动作信号超时 · 按 OK 重新开始')}
   const player=$('player');
   const jumping=now<jumpUntil,ducking=now<duckUntil;
   player.classList.toggle('duck',ducking&&!jumping);
