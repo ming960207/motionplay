@@ -57,7 +57,7 @@ function classify(points){
     }else calibration=[];
     return 'NEUTRAL';
   }
-  if(isSquatting){jumpArmed=true;return 'DUCK'}
+  if(isSquatting)return 'DUCK'
   // Compare hip displacement against the calibrated standing position,
   // normalized by torso length to reduce sensitivity to camera distance.
   const now=performance.now();
@@ -75,7 +75,7 @@ function classify(points){
 }
 function recalibrate(){
   baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;
-  stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;
+  stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';lastSent=0;
   status('请站直并保持身体稳定，正在重新标定');
 }
 async function onResults(result){
@@ -98,7 +98,7 @@ async function loop(token){
 }
 function stop(){
   session++;
-  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
+  active=false;cancelAnimationFrame(frame);$('action').textContent='—';stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
   if(pose){void pose.close();pose=undefined}
