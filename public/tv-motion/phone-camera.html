@@ -17,43 +17,66 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <p>手机与电视连接同一网络。需要 HTTPS 摄像头权限；本页在手机本地推理，不上传视频。</p>
 <label>电视配对码<input id="code" autocomplete="off" placeholder="电视上显示的配对码"></label>
 <label>WebSocket 服务地址<input id="relay" placeholder="wss://your-host.example/ws"></label>
-<button id="start">连接并开启摄像头</button><button id="stop" disabled>停止</button>
+<button id="start">连接并开启摄像头</button><button id="calibrate" disabled>重新标定站姿</button><button id="stop" disabled>停止</button>
 <p id="status" role="status">未连接</p>
 <video id="video" autoplay muted playsinline></video>
 <p>动作：<strong id="action">—</strong></p>
-<small>站立时全身入镜。双手高举触发 JUMP；明显下蹲触发 DUCK；向左右倾斜触发 LEFT/RIGHT。动作判定为首版启发式，尚未进行真实运动准确率标定。</small>
+<small>请将全身放入画面，保持站立约 2 秒完成标定。身体整体向上移动触发 JUMP，下蹲触发 DUCK，左右倾斜触发 LEFT/RIGHT。摄像头位置固定，避免移动手机；该算法仍需实机验证。</small>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0;
+let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,calibration=[],lastJumpAt=0;
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
-  // MediaPipe Pose landmark indices: shoulders 11/12, wrists 15/16, hips 23/24, knees 25/26.
   const leftShoulder=points[11],rightShoulder=points[12];
-  const leftWrist=points[15],rightWrist=points[16];
   const leftHip=points[23],rightHip=points[24];
   const leftKnee=points[25],rightKnee=points[26];
-  if(![leftShoulder,rightShoulder,leftWrist,rightWrist,leftHip,rightHip,leftKnee,rightKnee].every(isVisible))return 'NEUTRAL';
+  if(![leftShoulder,rightShoulder,leftHip,rightHip,leftKnee,rightKnee].every(isVisible))return 'NEUTRAL';
   const shoulderY=(leftShoulder.y+rightShoulder.y)/2;
   const hipY=(leftHip.y+rightHip.y)/2;
   const kneeY=(leftKnee.y+rightKnee.y)/2;
   const torso=Math.max(0.05,hipY-shoulderY);
-  if(leftWrist.y<shoulderY-0.1 && rightWrist.y<shoulderY-0.1)return 'JUMP';
-  // Bent knees move toward hip level; avoid classifying a standing pose as a squat.
-  if((kneeY-hipY)/torso<0.65)return 'DUCK';
+  const kneeRatio=(kneeY-hipY)/torso;
+  const isSquatting=kneeRatio<0.65;
+  if(baselineHip===null){
+    if(!isSquatting){
+      calibration.push(hipY);
+      if(calibration.length>=45){
+        const ordered=calibration.slice().sort((a,b)=>a-b);
+        baselineHip=ordered[Math.floor(ordered.length/2)];
+        status('站姿标定完成，可以开始体感操作');
+      }else if(calibration.length%10===0){
+        status('标定站姿中：'+calibration.length+'/45 帧');
+      }
+    }else calibration=[];
+    return 'NEUTRAL';
+  }
+  if(isSquatting)return 'DUCK';
+  // Compare hip displacement against the calibrated standing position,
+  // normalized by torso length to reduce sensitivity to camera distance.
+  const now=performance.now();
+  if((baselineHip-hipY)/torso>0.22&&now-lastJumpAt>850){
+    lastJumpAt=now;
+    return 'JUMP';
+  }
   const center=(leftShoulder.x+rightShoulder.x)/2;
   const hips=(leftHip.x+rightHip.x)/2;
   if(center-hips>0.12)return 'RIGHT';
   if(hips-center>0.12)return 'LEFT';
   return 'NEUTRAL';
 }
+function recalibrate(){
+  baselineHip=null;calibration=[];lastJumpAt=0;
+  stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;
+  status('请站直并保持身体稳定，正在重新标定');
+}
 async function onResults(result){
   if(!active)return;
   const detected=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
   if(detected===candidate)candidateCount++;else{candidate=detected;candidateCount=1}
-  if(candidateCount>=3)stableAction=candidate;
+  if(candidateCount>= (candidate==='JUMP'?1:3))stableAction=candidate;
   const action=stableAction;
   $('action').textContent=action;
   const now=Date.now();
@@ -68,13 +91,14 @@ async function loop(){
   if(active)frame=requestAnimationFrame(loop);
 }
 function stop(){
-  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';
+  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;calibration=[];
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
   if(pose){void pose.close();pose=undefined}
-  $('start').disabled=false;$('stop').disabled=true;
+  $('start').disabled=false;$('stop').disabled=true;$('calibrate').disabled=true;
 }
 $('stop').onclick=()=>{stop();status('已停止')};
+$('calibrate').onclick=recalibrate;
 $('start').onclick=async()=>{
   if(!window.isSecureContext){status('摄像头需要 HTTPS 安全上下文');return}
   const code=$('code').value.trim(),url=$('relay').value.trim() || (location.protocol==='https:'?'wss://':'ws://')+location.host+'/motion-ws';
@@ -91,7 +115,7 @@ $('start').onclick=async()=>{
     pose.onResults(onResults);
     socket=new WebSocket(url);
     socket.onopen=()=>socket.send(JSON.stringify({type:'join',code}));
-    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;$('stop').disabled=false;loop()}else if(msg.type==='error'){status('连接失败：'+msg.message);stop()}else if(msg.type==='disconnected'){status('电视已断开');stop()}};
+    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;recalibrate();$('stop').disabled=false;$('calibrate').disabled=false;loop()}else if(msg.type==='error'){status('连接失败：'+msg.message);stop()}else if(msg.type==='disconnected'){status('电视已断开');stop()}};
     socket.onclose=()=>{if(active){status('连接中断');stop()}};
     socket.onerror=()=>{status('WebSocket 连接错误');stop()};
   }catch(error){status('启动失败：'+error.message);stop()}
