@@ -47,6 +47,7 @@ function onMotion(action){
 }
 function reset(){
   if(!connected){connect();return}
+  jumpUntil=0;duckUntil=0;
   score=0;obstacleX=1.1;last=0;spawn=0;passed=false;obstacleHigh=Math.random()<.5;
   $('score').textContent='0';playing=true;announce('');
 }
@@ -64,7 +65,7 @@ function tick(now){
   const obstacle=$('obstacle');obstacle.classList.toggle('high',obstacleHigh);
   obstacle.style.left=(obstacleX*100)+'%';
   if(obstacleX<.23&&obstacleX>.12){
-    if(obstacleHigh?!ducking:!jumping){playing=false;announce('游戏结束 · 按 OK 重试');return}
+    if(obstacleHigh?!ducking:jumpOffset<70){playing=false;announce('游戏结束 · 按 OK 重试');return}
   }
   if(!passed&&obstacleX<.12){passed=true;score++;best=Math.max(best,score);$('score').textContent=score;$('best').textContent=best}
 }
