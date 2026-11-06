@@ -33,7 +33,7 @@ function connect(){
     if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机连接';announce('等待手机配对')}
     else if(m.type==='connected'){connected=true;remoteMode=false;playing=false;$('status').textContent='手机已连接';announce('按 OK 开始游戏')}
     else if(m.type==='motion')onMotion(m.action)
-    else if(m.type==='disconnected'){connected=false;playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
+    else if(m.type==='disconnected'){connected=false;previousMotion='NEUTRAL';playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
     else if(m.type==='error'){$('status').textContent=m.message}
   };
   socket.onclose=()=>{connected=false;if(!remoteMode){playing=false;announce('连接中断 · 按 OK 使用遥控器试玩')}$('status').textContent=remoteMode?'遥控器试玩模式':'服务连接断开'};
@@ -42,12 +42,13 @@ function connect(){
 function onMotion(action){
   if(!playing)return;
   const now=performance.now();
-  if(action==='JUMP'&&now>=jumpUntil)jumpUntil=now+750;
+  if(action==='JUMP'&&previousMotion!=='JUMP'&&now>=jumpUntil)jumpUntil=now+750;
   if(action==='DUCK'&&now>=jumpUntil)duckUntil=now+500;
+  previousMotion=action;
 }
 function reset(){
   if(!connected&&!remoteMode){remoteMode=true;$('status').textContent='遥控器试玩模式'}
-  jumpUntil=0;duckUntil=0;
+  jumpUntil=0;duckUntil=0;previousMotion='NEUTRAL';
   score=0;obstacleX=1.1;last=0;spawn=0;passed=false;obstacleHigh=Math.random()<.5;
   $('score').textContent='0';playing=true;announce('');
 }
