@@ -71,7 +71,7 @@ function stop(){
   active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
-  pose?.close();pose=undefined;
+  if(pose){void pose.close();pose=undefined}
   $('start').disabled=false;$('stop').disabled=true;
 }
 $('stop').onclick=()=>{stop();status('已停止')};
@@ -91,9 +91,9 @@ $('start').onclick=async()=>{
     pose.onResults(onResults);
     socket=new WebSocket(url);
     socket.onopen=()=>socket.send(JSON.stringify({type:'join',code}));
-    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;$('stop').disabled=false;loop()}else if(msg.type==='error')status('连接失败：'+msg.message);else if(msg.type==='disconnected'){status('电视已断开');stop()}};
+    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;$('stop').disabled=false;loop()}else if(msg.type==='error'){status('连接失败：'+msg.message);stop()}else if(msg.type==='disconnected'){status('电视已断开');stop()}};
     socket.onclose=()=>{if(active){status('连接中断');stop()}};
-    socket.onerror=()=>status('WebSocket 连接错误');
+    socket.onerror=()=>{status('WebSocket 连接错误');stop()};
   }catch(error){status('启动失败：'+error.message);stop()}
 };
 </script></body></html>
