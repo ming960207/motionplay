@@ -30,7 +30,11 @@ let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',last
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
-  const [nose,,, , ,leftShoulder,rightShoulder,leftElbow,rightElbow,leftWrist,rightWrist,leftHip,rightHip,leftKnee,rightKnee,leftAnkle,rightAnkle]=points;
+  // MediaPipe Pose landmark indices: shoulders 11/12, wrists 15/16, hips 23/24, knees 25/26.
+  const leftShoulder=points[11],rightShoulder=points[12];
+  const leftWrist=points[15],rightWrist=points[16];
+  const leftHip=points[23],rightHip=points[24];
+  const leftKnee=points[25],rightKnee=points[26];
   if(![leftShoulder,rightShoulder,leftWrist,rightWrist,leftHip,rightHip,leftKnee,rightKnee].every(isVisible))return 'NEUTRAL';
   const shoulderY=(leftShoulder.y+rightShoulder.y)/2;
   const hipY=(leftHip.y+rightHip.y)/2;
@@ -69,7 +73,7 @@ function stop(){
 $('stop').onclick=()=>{stop();status('已停止')};
 $('start').onclick=async()=>{
   if(!window.isSecureContext){status('摄像头需要 HTTPS 安全上下文');return}
-  const code=$('code').value.trim(),url=$('relay').value.trim();
+  const code=$('code').value.trim(),url=$('relay').value.trim() || (location.protocol==='https:'?'wss://':'ws://')+location.host+'/motion-ws';
   if(!/^[0-9a-f]{32}$/.test(code)){status('请输入电视上的 32 位配对码');return}
   if(!/^wss:\/\//.test(url)&&!/^ws:\/\/localhost(?::\d+)?(?:\/|$)/.test(url)){status('请输入 wss:// 服务地址（localhost 可使用 ws://）');return}
   $('start').disabled=true;
