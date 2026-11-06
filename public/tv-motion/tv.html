@@ -22,7 +22,7 @@ button{font:inherit;color:#fff;background:#275777;border:1px solid #6d99b5;borde
 <script>
 const $=id=>document.getElementById(id);
 const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
-let socket,connected=false,playing=false,remoteMode=false,previousMotion='NEUTRAL',lastMotionAt=0,score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
+let socket,connected=false,playing=false,remoteMode=false,previousMotion='NEUTRAL',lastMotionAt=0,score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false;
 function announce(message){$('message').textContent=message}
 function connect(){
   if(socket&&socket.readyState<2)socket.close();
@@ -50,7 +50,7 @@ function onMotion(action){
 function reset(){
   if(!connected&&!remoteMode){remoteMode=true;$('status').textContent='遥控器试玩模式'}
   jumpUntil=0;duckUntil=0;previousMotion='NEUTRAL';lastMotionAt=connected?performance.now():0;
-  score=0;obstacleX=1.1;last=0;spawn=0;passed=false;obstacleHigh=Math.random()<.5;
+  score=0;obstacleX=1.1;last=0;passed=false;obstacleHigh=Math.random()<.5;
   $('score').textContent='0';playing=true;announce('');
 }
 function tick(now){
@@ -63,7 +63,8 @@ function tick(now){
   const jumpOffset=jumping?Math.sin(Math.PI*(1-(jumpUntil-now)/750))*145:0;
   player.style.transform='translateY('+(-Math.max(0,jumpOffset))+'px)';
   if(!playing)return;
-  obstacleX-=dt*(.32+Math.min(score,.4*100)/500);
+  // Ease the opening rounds in; cap speed to keep camera-based reactions feasible.
+  obstacleX-=dt*(.28+Math.min(score,20)*.009);
   if(obstacleX<-.08){obstacleX=1.1;obstacleHigh=Math.random()<.5;passed=false}
   const obstacle=$('obstacle');obstacle.classList.toggle('high',obstacleHigh);
   obstacle.style.left=(obstacleX*100)+'%';
