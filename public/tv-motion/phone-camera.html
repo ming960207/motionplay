@@ -23,8 +23,8 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <p>动作：<strong id="action">—</strong></p>
 <small>站立时全身入镜。双手高举触发 JUMP；明显下蹲触发 DUCK；向左右倾斜触发 LEFT/RIGHT。动作判定为首版启发式，尚未进行真实运动准确率标定。</small>
 </main>
-<script type="module">
-import { Pose } from 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js';
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
+<script>
 const $=id=>document.getElementById(id);
 let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0;
 const status=s=>$('status').textContent=s;
@@ -76,8 +76,7 @@ $('start').onclick=async()=>{
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
     $('video').srcObject=stream;await $('video').play();
-    const module=await import('https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js');
-    const PoseCtor=module.Pose||globalThis.Pose;
+    const PoseCtor=globalThis.Pose;
     if(!PoseCtor)throw new Error('MediaPipe Pose 加载失败');
     pose=new PoseCtor({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+file});
     pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
