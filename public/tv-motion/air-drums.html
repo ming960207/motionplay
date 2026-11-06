@@ -1,9 +1,9 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MotionPlay Air Drums</title>
 <style>body{margin:0;background:#0c1829;color:#fff;font:20px system-ui;text-align:center}h1{margin:2vh}#status{color:#9fd6e0}code{font-size:14px;color:#9fe5cf}main{height:38vh;display:grid;grid-template-columns:repeat(3,1fr);gap:3vw;padding:3vw}.pad{border:3px solid #6586a3;border-radius:25px;display:grid;place-items:center;font-size:clamp(20px,3vw,42px);background:#18324d}.pad.hit{background:#398f87;transform:scale(1.04)}button{font:inherit;padding:10px 25px;background:#245779;color:white;border:2px solid #6387a5;border-radius:12px}button:focus-visible{outline:4px solid #9fe5cf}#song{color:#a9c2d6;font-size:16px}#beat{height:16px;margin:8px 4vw;background:#1b3854;border-radius:12px;overflow:hidden}#pulse{height:100%;width:0;background:#9fe5cf}#track{position:relative;height:24vh;margin:10px 3vw;border:2px solid #426884;border-radius:14px;background:repeating-linear-gradient(90deg,#152c44 0,#152c44 calc(33.333% - 1px),#426884 calc(33.333% - 1px),#426884 33.333%);overflow:hidden}#notes{position:absolute;inset:0;pointer-events:none}.note{position:absolute;width:19%;height:12px;background:#efb879;border-radius:8px;box-shadow:0 0 10px #efb87988}#line{position:absolute;bottom:12%;left:0;right:0;height:3px;background:#9fe5cf}input[type=file]{font-size:14px;max-width:240px}select{background:#18324d;color:white;border:1px solid #6586a3;padding:8px;border-radius:8px}.pad{transition:transform .08s,background .12s}#stats{margin:12px}#hint{font-size:15px;color:#aac4d9;margin:8px}#feedback{font-size:22px;min-height:30px;color:#9fe5cf}</style>
-<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><button id="audio">开启鼓声</button><label>本地歌曲 <input id="file" type="file" accept="audio/*"></label><label>难度 <select id="difficulty"><option value="easy">简单</option><option value="normal" selected>标准</option><option value="hard">困难</option></select></label><button id="play" disabled>播放歌曲（OK）</button><button id="stop">停止歌曲</button><div id="song">选择本地音频，自动分析节奏；不上传音乐</div><div id="beat"><div id="pulse"></div></div><div>配对码：<code id="code">—</code><div id="stats">得分：<strong id="score">0</strong>　节奏命中：<strong id="accuracy">0</strong>　连击：<strong id="combo">0</strong>　最高连击：<strong id="best">0</strong></div><div id="feedback" aria-live="polite">等待击鼓</div></div>
+<h1>MotionPlay · Air Drums</h1><div id="status">正在连接…</div><button id="audio">开启鼓声</button><label>本地歌曲 <input id="file" type="file" accept="audio/*"></label><label>判定偏移 <select id="offset"><option value="-0.15">-150ms</option><option value="-0.1">-100ms</option><option value="-0.05">-50ms</option><option value="0" selected>0ms</option><option value="0.05">+50ms</option><option value="0.1">+100ms</option><option value="0.15">+150ms</option></select></label><label>难度 <select id="difficulty"><option value="easy">简单</option><option value="normal" selected>标准</option><option value="hard">困难</option></select></label><button id="play" disabled>播放歌曲（OK）</button><button id="stop">停止歌曲</button><div id="song">选择本地音频，自动分析节奏；不上传音乐</div><div id="beat"><div id="pulse"></div></div><div>配对码：<code id="code">—</code><div id="stats">得分：<strong id="score">0</strong>　节奏命中：<strong id="accuracy">0</strong>　连击：<strong id="combo">0</strong>　最高连击：<strong id="best">0</strong></div><div id="feedback" aria-live="polite">等待击鼓</div></div>
 <div id="track"><div id="notes"></div><div id="line"></div></div><main><div class="pad" id="left">左鼓<br>LEFT</div><div class="pad" id="center">主鼓<br>JUMP / DUCK</div><div class="pad" id="right">右鼓<br>RIGHT</div></main><div id="hint">手机动作控制鼓点；遥控器 ← ↑ → 可试玩，OK 开启声音。音符落到判定线时击打对应鼓位；歌曲节奏由本地音频自动估计。</div><button id="reset">重置成绩</button>
 <script>
-const $=id=>document.getElementById(id);let score=0,combo=0,best=0,ws,lastAction='NEUTRAL',lastHit=0,audioContext=null,connected=false,flashTimers=new Map(),songBuffer=null,songSource=null,beats=[],chart=[],songStart=0,beatIndex=0,beatHits=0,misses=0,loadToken=0,animation=0;
+const $=id=>document.getElementById(id);let score=0,combo=0,best=0,ws,lastAction='NEUTRAL',lastHit=0,audioContext=null,connected=false,flashTimers=new Map(),songBuffer=null,songSource=null,beats=[],chart=[],songStart=0,beatIndex=0,beatHits=0,misses=0,loadToken=0,animation=0,judgementOffset=0;
 const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
 function sound(action){
   if(!audioContext||audioContext.state!=='running')return;
@@ -42,31 +42,30 @@ function analyze(buffer){
 function stopSong(){
   cancelAnimationFrame(animation);
   if(songSource){const old=songSource;songSource=null;old.onended=null;try{old.stop()}catch(e){if(e.name!=='InvalidStateError')throw e}old.disconnect()}
-  $('pulse').style.width='0';$('notes').replaceChildren();
+  $('pulse').style.width='0';$('notes').replaceChildren();for(const note of chart)note.element=null;
 }
 function drawBeat(){
   if(!songSource)return;
-  const t=audioContext.currentTime-songStart;
+  const t=audioContext.currentTime-songStart+judgementOffset;
   while(beatIndex<chart.length&&chart[beatIndex].time<t-.24){
     if(!chart[beatIndex].judged){chart[beatIndex].judged=true;misses++;combo=0;$('combo').textContent='0';$('feedback').textContent='MISS'}
     beatIndex++;
   }
   const delta=beatIndex<chart.length?chart[beatIndex].time-t:2;
-  const visible=$('notes');visible.replaceChildren();
+  const visible=$('notes');
   for(let i=beatIndex;i<chart.length&&chart[i].time<t+2.2;i++){
     const note=chart[i];if(note.judged)continue;
-    const element=document.createElement('div');element.className='note';
-    element.style.left=(note.lane*33.333+7.16)+'%';
-    element.style.top=(5+(1-(note.time-t)/2.2)*79)+'%';
-    visible.append(element);
+    if(!note.element){note.element=document.createElement('div');note.element.className='note';note.element.style.left=(note.lane*33.333+7.16)+'%';visible.append(note.element)}
+    note.element.style.top=(5+(1-(note.time-t)/2.2)*79)+'%';
   }
+  for(const note of chart){if(note.element&&(note.judged||note.time<t-.24)){note.element.remove();note.element=null}}
   $('pulse').style.width=Math.max(0,Math.min(100,(1-delta/1.5)*100))+'%';
   animation=requestAnimationFrame(drawBeat);
 }
 async function playSong(){
   if(!songBuffer)throw new Error('请先选择歌曲');
-  await enableAudio();stopSong();beatIndex=0;beatHits=0;misses=0;const step={easy:3,normal:2,hard:1}[$('difficulty').value];
-  chart=beats.filter((_,i)=>i%step===0).map((time,i)=>({time,lane:i%3,judged:false}));$('accuracy').textContent='0';
+  await enableAudio();stopSong();score=0;combo=0;best=0;lastHit=0;lastAction='NEUTRAL';$('score').textContent='0';$('combo').textContent='0';$('best').textContent='0';judgementOffset=Number($('offset').value);beatIndex=0;beatHits=0;misses=0;const step={easy:3,normal:2,hard:1}[$('difficulty').value];
+  chart=beats.filter((_,i)=>i%step===0).map((time,i)=>({time,lane:i%3,judged:false,element:null}));$('accuracy').textContent='0';
   songSource=audioContext.createBufferSource();songSource.buffer=songBuffer;songSource.connect(audioContext.destination);
   songStart=audioContext.currentTime+.1;songSource.start(songStart);
   const playingSource=songSource;
@@ -99,7 +98,7 @@ function hit(action){
   lastAction=action;
   if(now-lastHit<180)return;
   if(songSource){
-    const t=audioContext.currentTime-songStart;
+    const t=audioContext.currentTime-songStart+judgementOffset;
     const lane={LEFT:0,JUMP:1,DUCK:1,RIGHT:2}[action];
     let closest=-1,distance=.22;
     for(let i=Math.max(0,beatIndex-1);i<Math.min(chart.length,beatIndex+5);i++){
@@ -107,11 +106,11 @@ function hit(action){
       const d=Math.abs(note.time-t);if(d<distance){distance=d;closest=i}
     }
     if(closest<0){combo=0;lastHit=now;$('feedback').textContent='MISS · 鼓位或时机错误';$('combo').textContent='0';return}
-    chart[closest].judged=true;beatHits++;$('accuracy').textContent=beatHits;
+    chart[closest].judged=true;if(chart[closest].element){chart[closest].element.remove();chart[closest].element=null}beatHits++;$('accuracy').textContent=beatHits;
     score+=distance<.09?100:60;
     $('feedback').textContent=distance<.09?'PERFECT':'GOOD';
   }
-  combo=now-lastHit<=2000?combo+1:1;
+  combo=songSource?combo+1:(now-lastHit<=2000?combo+1:1);
   best=Math.max(best,combo);lastHit=now;if(!songSource)score++;
   $('score').textContent=score;$('combo').textContent=combo;$('best').textContent=best;
   if(!songSource)$('feedback').textContent=combo>=5?'连击 × '+combo:'击中 · '+({left:'左鼓',center:'主鼓',right:'右鼓'}[id]);
@@ -125,6 +124,6 @@ $('reset').onclick=()=>{score=0;combo=0;best=0;lastHit=0;lastAction='NEUTRAL';$(
 $('audio').onclick=()=>enableAudio().catch(error=>$('status').textContent='音频启动失败：'+error.message);
 document.addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='ArrowLeft'){e.preventDefault();hit('LEFT')}if(e.key==='ArrowRight'){e.preventDefault();hit('RIGHT')}if(e.key==='ArrowUp'){e.preventDefault();hit('JUMP')}if(e.key==='Enter'){e.preventDefault();if(songBuffer)playSong().catch(error=>$('status').textContent=error.message);else enableAudio().catch(error=>$('status').textContent=error.message)}});
 document.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','ArrowUp'].includes(e.key))lastAction='NEUTRAL'});
-setInterval(()=>{if(combo&&performance.now()-lastHit>2000){combo=0;$('combo').textContent='0';$('feedback').textContent='等待下一次击鼓'}},250);
+setInterval(()=>{if(!songSource&&combo&&performance.now()-lastHit>2000){combo=0;$('combo').textContent='0';$('feedback').textContent='等待下一次击鼓'}},250);
 connect();
 </script></html>
