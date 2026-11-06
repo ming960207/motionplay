@@ -36,8 +36,8 @@ function connect(){
     else if(m.type==='disconnected'){connected=false;playing=false;$('status').textContent='手机已断开';announce('已暂停 · 等待手机重新连接')}
     else if(m.type==='error'){$('status').textContent=m.message}
   };
-  socket.onclose=()=>{connected=false;playing=false;$('status').textContent='服务连接断开';announce('连接中断 · 按 OK 重连')};
-  socket.onerror=()=>{$('status').textContent='WebSocket 连接失败'};
+  socket.onclose=()=>{connected=false;if(!remoteMode){playing=false;announce('连接中断 · 按 OK 使用遥控器试玩')}$('status').textContent=remoteMode?'遥控器试玩模式':'服务连接断开'};
+  socket.onerror=()=>{if(!remoteMode)$('status').textContent='WebSocket 连接失败 · 可按 OK 试玩'};
 }
 function onMotion(action){
   if(!playing)return;
