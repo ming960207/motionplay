@@ -26,7 +26,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0;
+let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0;
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
@@ -41,6 +41,7 @@ function classify(points){
   const kneeY=(leftKnee.y+rightKnee.y)/2;
   const torso=Math.max(0.05,hipY-shoulderY);
   if(leftWrist.y<shoulderY-0.1 && rightWrist.y<shoulderY-0.1)return 'JUMP';
+  // Bent knees move toward hip level; avoid classifying a standing pose as a squat.
   if((kneeY-hipY)/torso<0.65)return 'DUCK';
   const center=(leftShoulder.x+rightShoulder.x)/2;
   const hips=(leftHip.x+rightHip.x)/2;
@@ -50,7 +51,10 @@ function classify(points){
 }
 async function onResults(result){
   if(!active)return;
-  const action=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
+  const detected=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
+  if(detected===candidate)candidateCount++;else{candidate=detected;candidateCount=1}
+  if(candidateCount>=3)stableAction=candidate;
+  const action=stableAction;
   $('action').textContent=action;
   const now=Date.now();
   if(socket?.readyState===WebSocket.OPEN&&(action!==lastAction||now-lastSent>1000)){
@@ -64,7 +68,7 @@ async function loop(){
   if(active)frame=requestAnimationFrame(loop);
 }
 function stop(){
-  active=false;cancelAnimationFrame(frame);
+  active=false;cancelAnimationFrame(frame);stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   socket?.close();socket=undefined;
   pose?.close();pose=undefined;
