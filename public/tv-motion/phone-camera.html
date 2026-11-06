@@ -5,9 +5,9 @@
 <title>MotionPlay · 摄像头控制</title>
 <style>
 body{margin:0;background:#0b1729;color:#f5f8ff;font:16px system-ui;padding:16px}
-main{max-width:650px;margin:auto}input,button{font:inherit;padding:12px;border-radius:8px}
+main{max-width:650px;margin:auto}input,button,select{font:inherit;padding:12px;border-radius:8px}
 input{background:#182e45;color:#fff;border:1px solid #526c82;width:100%;box-sizing:border-box}
-button{background:#25618a;color:white;border:0;margin:10px 5px 10px 0}
+select{background:#182e45;color:#fff;border:1px solid #526c82;padding:10px;border-radius:8px;margin:8px 0}button{background:#25618a;color:white;border:0;margin:10px 5px 10px 0}
 video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:scaleX(-1)}
 #status{color:#9fe5cf}small{color:#a8b9c9}
 </style>
@@ -17,6 +17,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <p>手机与电视连接同一网络。需要 HTTPS 摄像头权限；本页在手机本地推理，不上传视频。</p>
 <label>电视配对码<input id="code" autocomplete="off" placeholder="电视上显示的配对码"></label>
 <label>WebSocket 服务地址<input id="relay" placeholder="wss://your-host.example/ws"></label>
+<label>跳跃灵敏度 <select id="sensitivity"><option value="0.28">低（减少误判）</option><option value="0.22" selected>标准</option><option value="0.16">高（轻微起跳）</option></select></label>
 <button id="start">连接并开启摄像头</button><button id="calibrate" disabled>重新标定站姿</button><button id="stop" disabled>停止</button>
 <p id="status" role="status">未连接</p>
 <video id="video" autoplay muted playsinline></video>
@@ -63,7 +64,7 @@ function classify(points){
   const now=performance.now();
   const rise=(baselineHip-hipY)/baselineTorso;
   if(rise<0.10)jumpArmed=true;
-  if(jumpArmed&&rise>0.22&&now-lastJumpAt>850){
+  if(jumpArmed&&rise>Number($('sensitivity').value)&&now-lastJumpAt>850){
     jumpArmed=false;lastJumpAt=now;
     return 'JUMP';
   }
