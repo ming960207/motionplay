@@ -56,6 +56,11 @@ test('pairing, motion forwarding, replay rejection and disconnect', async t => {
   const rejected = nextMessage(phone)
   phone.send(JSON.stringify(motion))
   assert.equal((await rejected).type, 'error')
+  const limited = nextMessage(phone)
+  for (let i = 2; i <= 40; i++) {
+    phone.send(JSON.stringify({ ...motion, sequence: i, timestamp: Date.now() }))
+  }
+  assert.equal((await limited).type, 'error')
   const disconnected = nextMessage(tv)
   phone.close()
   assert.equal((await disconnected).type, 'disconnected')
