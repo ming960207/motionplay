@@ -13,9 +13,12 @@ function sound(action){
   osc.frequency.exponentialRampToValueAtTime(45,now+0.13);
   gain.gain.setValueAtTime(0.18,now);gain.gain.exponentialRampToValueAtTime(0.001,now+0.16);
   osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+0.17);
+  osc.onended=()=>{osc.disconnect();gain.disconnect()};
 }
 async function enableAudio(){
-  if(!audioContext)audioContext=new (window.AudioContext||window.webkitAudioContext)();
+  const AudioCtor=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtor)throw new Error('当前电视浏览器不支持 Web Audio');
+  if(!audioContext)audioContext=new AudioCtor();
   await audioContext.resume();$('audio').textContent='鼓声已开启';
 }
 function hit(action){
