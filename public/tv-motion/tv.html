@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MotionPlay TV</title><style>body{margin:0;background:#0c1729;color:#f3f7ff;font:24px system-ui;text-align:center}main{padding:5vh 5vw}h1{font-size:3rem}#action{font-size:6rem;color:#8fe7ce;margin:8vh}code{overflow-wrap:anywhere;font-size:1rem}#status{color:#9fc2e1}</style><main><h1>MotionPlay TV</h1><p id="status">连接中…</p><p>配对码 <code id="code">—</code></p><div id="action">等待动作</div><p>手机打开 /tv-motion/phone.html 并输入配对码</p></main><script>
+const status=document.querySelector('#status'),code=document.querySelector('#code'),action=document.querySelector('#action');
+const endpoint=new URLSearchParams(location.search).get('relay')||'ws://'+location.hostname+':8787';
+const ws=new WebSocket(endpoint);
+ws.onopen=()=>ws.send(JSON.stringify({type:'create'}));
+ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='created'){code.textContent=m.code;status.textContent='等待手机配对'}else if(m.type==='connected'){status.textContent='手机已连接'}else if(m.type==='motion'){action.textContent=m.action}else if(m.type==='disconnected'){status.textContent='手机已断开';action.textContent='已暂停'}else if(m.type==='error')status.textContent=m.message};
+ws.onclose=()=>{status.textContent='连接已断开';action.textContent='已暂停'};
+</script></html>
