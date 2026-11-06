@@ -17,7 +17,7 @@ if(!route||!route.startsWith('/')||route.startsWith('//')||route.includes('\\'))
 }
 const frame=document.getElementById('game');
 frame.src=route;
-const relay=params.get('relay')||'ws://'+location.hostname+':8787';
+const relay=params.get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
 let socket,lastSeq=-1;
 const map={JUMP:['ArrowUp','Space'],DUCK:['ArrowDown'],LEFT:['ArrowLeft'],RIGHT:['ArrowRight'],NEUTRAL:[]};
 function dispatch(action){
