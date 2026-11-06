@@ -28,7 +28,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket,stream,pose,frame=0,sequence=0,active=false,session=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,baselineTorso=null,calibration=[],lastJumpAt=0,jumpArmed=true,baselineKneeRatio=null;
+let socket,stream,pose,frame=0,sequence=0,active=false,session=0,poseMissingFrames=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,baselineTorso=null,calibration=[],lastJumpAt=0,jumpArmed=true,baselineKneeRatio=null;
 const status=s=>$('status').textContent=s;
 const isVisible=p=>p&&p.visibility>=0.55;
 function classify(points){
@@ -76,14 +76,21 @@ function classify(points){
   return 'NEUTRAL';
 }
 function recalibrate(){
-  baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;$('calibration-progress').value=0;
+  baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];lastJumpAt=0;jumpArmed=true;poseMissingFrames=0;$('calibration-progress').value=0;
   stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';lastSent=0;
   status('请站直并保持身体稳定，正在重新标定');
 }
 async function onResults(result){
   if(!active)return;
-  const detected=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
-  $('tracking').textContent=!result.poseLandmarks?'未识别到人体':baselineHip===null?'正在标定':'跟踪正常';
+  const points=result.poseLandmarks;
+  const visible=points&&[11,12,23,24,25,26].every(index=>isVisible(points[index]));
+  poseMissingFrames=visible?0:poseMissingFrames+1;
+  const detected=visible?classify(points):'NEUTRAL';
+  $('tracking').textContent=!visible?'未识别到完整人体':baselineHip===null?'正在标定':'跟踪正常';
+  if(poseMissingFrames>=15&&baselineHip!==null){
+    recalibrate();
+    status('人体持续丢失，请重新站直等待标定');
+  }
   if(detected===candidate)candidateCount++;else{candidate=detected;candidateCount=1}
   if(candidateCount>= (candidate==='JUMP'||candidate==='NEUTRAL'?1:3))stableAction=candidate;
   const action=stableAction;
@@ -101,7 +108,7 @@ async function loop(token){
 }
 function stop(){
   session++;
-  active=false;cancelAnimationFrame(frame);$('action').textContent='—';$('tracking').textContent='未开始';$('calibration-progress').value=0;stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
+  active=false;cancelAnimationFrame(frame);$('action').textContent='—';$('tracking').textContent='未开始';$('calibration-progress').value=0;stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;poseMissingFrames=0;
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
   $('video').srcObject=null;
   socket?.close();socket=undefined;
