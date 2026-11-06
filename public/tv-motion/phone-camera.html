@@ -44,6 +44,10 @@ function classify(points){
     if(!isSquatting){
       calibration.push({hipY,torso,kneeRatio});
       if(calibration.length>=45){
+        const hipValues=calibration.map(sample=>sample.hipY);
+        if(Math.max(...hipValues)-Math.min(...hipValues)>0.045){
+          calibration=[];status('标定期间身体移动，请保持站直重新标定');return 'NEUTRAL';
+        }
         const median=key=>calibration.map(sample=>sample[key]).sort((a,b)=>a-b)[Math.floor(calibration.length/2)];
         baselineHip=median('hipY');baselineTorso=median('torso');baselineKneeRatio=median('kneeRatio');
         status('站姿标定完成，可以开始体感操作');
@@ -53,7 +57,7 @@ function classify(points){
     }else calibration=[];
     return 'NEUTRAL';
   }
-  if(isSquatting)return 'DUCK';
+  if(isSquatting){jumpArmed=true;return 'DUCK'}
   // Compare hip displacement against the calibrated standing position,
   // normalized by torso length to reduce sensitivity to camera distance.
   const now=performance.now();
@@ -78,7 +82,7 @@ async function onResults(result){
   if(!active)return;
   const detected=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
   if(detected===candidate)candidateCount++;else{candidate=detected;candidateCount=1}
-  if(candidateCount>= (candidate==='JUMP'?1:3))stableAction=candidate;
+  if(candidateCount>= (candidate==='JUMP'||candidate==='NEUTRAL'?1:3))stableAction=candidate;
   const action=stableAction;
   $('action').textContent=action;
   const now=Date.now();
