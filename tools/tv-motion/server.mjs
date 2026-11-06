@@ -6,6 +6,7 @@ if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('In
 const wss = new WebSocketServer({ port, maxPayload: 2048 })
 const rooms = new Map()
 const MAX_ROOMS = 100
+const MAX_MOTION_PER_SECOND = 30
 const ROOM_TTL_MS = 10 * 60_000
 const actions = new Set(['JUMP', 'DUCK', 'LEFT', 'RIGHT', 'NEUTRAL'])
 const send = (ws, data) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)) }
@@ -14,6 +15,8 @@ wss.on('connection', ws => {
   let room = null
   let role = null
   let lastSequence = -1
+  let motionWindowStart = 0
+  let motionCount = 0
   ws.on('message', raw => {
     let data
     try { data = JSON.parse(raw.toString()) } catch { fail(ws, 'Invalid JSON'); return }
@@ -42,6 +45,9 @@ wss.on('connection', ws => {
           !Number.isFinite(data.confidence) || data.confidence < 0 || data.confidence > 1) {
         fail(ws, 'Invalid motion'); return
       }
+      const now = Date.now()
+      if (now - motionWindowStart >= 1000) { motionWindowStart = now; motionCount = 0 }
+      if (++motionCount > MAX_MOTION_PER_SECOND) { fail(ws, 'Motion rate limit exceeded'); return }
       lastSequence = data.sequence
       send(target.tv, { type: 'motion', sequence: data.sequence, timestamp: data.timestamp, action: data.action, confidence: data.confidence })
       return
