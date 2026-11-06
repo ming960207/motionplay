@@ -80,8 +80,9 @@ function tick(now){
   }
 }
 $('start').onclick=reset;
+document.addEventListener('keyup',e=>{if(e.key==='ArrowDown'&&!connected){duckUntil=0;previousMotion='NEUTRAL'}});
 document.addEventListener('keydown',e=>{
-  if(['Enter',' ','NumpadEnter'].includes(e.key)){e.preventDefault();reset()}
+  if(['Enter',' ','NumpadEnter'].includes(e.key)){e.preventDefault();if(!e.repeat)reset()}
   if(e.key==='ArrowUp'){e.preventDefault();if(!e.repeat){previousMotion='NEUTRAL';onMotion('JUMP')}}
   if(e.key==='ArrowDown'){e.preventDefault();onMotion('DUCK')}
   if(e.key==='Escape'||e.key==='Backspace'){playing=false;announce('已暂停 · 按 OK 重新开始')}
