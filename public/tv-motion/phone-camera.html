@@ -100,14 +100,19 @@ function stop(){
   session++;
   active=false;cancelAnimationFrame(frame);$('action').textContent='—';stableAction='NEUTRAL';candidate='NEUTRAL';candidateCount=0;lastAction='NEUTRAL';baselineHip=null;baselineTorso=null;baselineKneeRatio=null;calibration=[];jumpArmed=true;
   stream?.getTracks().forEach(t=>t.stop());stream=undefined;
+  $('video').srcObject=null;
   socket?.close();socket=undefined;
   if(pose){void pose.close();pose=undefined}
   $('start').disabled=false;$('stop').disabled=true;$('calibrate').disabled=true;
 }
 $('stop').onclick=()=>{stop();status('已停止')};
 $('calibrate').onclick=recalibrate;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&active){stop();status('页面已切换到后台，摄像头已停止，请重新连接')}
+});
 $('start').onclick=async()=>{
   if(!window.isSecureContext){status('摄像头需要 HTTPS 安全上下文');return}
+  if(!navigator.mediaDevices?.getUserMedia){status('当前浏览器不支持摄像头访问');return}
   const code=$('code').value.trim(),url=$('relay').value.trim() || (location.protocol==='https:'?'wss://':'ws://')+location.host+'/motion-ws';
   if(!/^[0-9a-f]{32}$/.test(code)){status('请输入电视上的 32 位配对码');return}
   if(!/^wss:\/\//.test(url)&&!/^ws:\/\/localhost(?::\d+)?(?:\/|$)/.test(url)){status('请输入 wss:// 服务地址（localhost 可使用 ws://）');return}
