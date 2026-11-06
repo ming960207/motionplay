@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MotionPlay · 摄像头控制</title>
+<style>
+body{margin:0;background:#0b1729;color:#f5f8ff;font:16px system-ui;padding:16px}
+main{max-width:650px;margin:auto}input,button{font:inherit;padding:12px;border-radius:8px}
+input{background:#182e45;color:#fff;border:1px solid #526c82;width:100%;box-sizing:border-box}
+button{background:#25618a;color:white;border:0;margin:10px 5px 10px 0}
+video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:scaleX(-1)}
+#status{color:#9fe5cf}small{color:#a8b9c9}
+</style>
+</head>
+<body><main>
+<h1>MotionPlay 摄像头体感控制</h1>
+<p>手机与电视连接同一网络。需要 HTTPS 摄像头权限；本页在手机本地推理，不上传视频。</p>
+<label>电视配对码<input id="code" autocomplete="off" placeholder="电视上显示的配对码"></label>
+<label>WebSocket 服务地址<input id="relay" placeholder="wss://your-host.example/ws"></label>
+<button id="start">连接并开启摄像头</button><button id="stop" disabled>停止</button>
+<p id="status" role="status">未连接</p>
+<video id="video" autoplay muted playsinline></video>
+<p>动作：<strong id="action">—</strong></p>
+<small>站立时全身入镜。双手高举触发 JUMP；明显下蹲触发 DUCK；向左右倾斜触发 LEFT/RIGHT。动作判定为首版启发式，尚未进行真实运动准确率标定。</small>
+</main>
+<script type="module">
+import { Pose } from 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js';
+const $=id=>document.getElementById(id);
+let socket,stream,pose,frame=0,sequence=0,active=false,lastAction='NEUTRAL',lastSent=0;
+const status=s=>$('status').textContent=s;
+const isVisible=p=>p&&p.visibility>=0.55;
+function classify(points){
+  const [nose,,, , ,leftShoulder,rightShoulder,leftElbow,rightElbow,leftWrist,rightWrist,leftHip,rightHip,leftKnee,rightKnee,leftAnkle,rightAnkle]=points;
+  if(![leftShoulder,rightShoulder,leftWrist,rightWrist,leftHip,rightHip,leftKnee,rightKnee].every(isVisible))return 'NEUTRAL';
+  const shoulderY=(leftShoulder.y+rightShoulder.y)/2;
+  const hipY=(leftHip.y+rightHip.y)/2;
+  const kneeY=(leftKnee.y+rightKnee.y)/2;
+  const torso=Math.max(0.05,hipY-shoulderY);
+  if(leftWrist.y<shoulderY-0.1 && rightWrist.y<shoulderY-0.1)return 'JUMP';
+  if((kneeY-hipY)/torso<0.65)return 'DUCK';
+  const center=(leftShoulder.x+rightShoulder.x)/2;
+  const hips=(leftHip.x+rightHip.x)/2;
+  if(center-hips>0.12)return 'RIGHT';
+  if(hips-center>0.12)return 'LEFT';
+  return 'NEUTRAL';
+}
+async function onResults(result){
+  if(!active)return;
+  const action=result.poseLandmarks?classify(result.poseLandmarks):'NEUTRAL';
+  $('action').textContent=action;
+  const now=Date.now();
+  if(socket?.readyState===WebSocket.OPEN&&(action!==lastAction||now-lastSent>1000)){
+    socket.send(JSON.stringify({type:'motion',sequence:++sequence,timestamp:now,action,confidence:1}));
+    lastAction=action;lastSent=now;
+  }
+}
+async function loop(){
+  if(!active)return;
+  try{await pose.send({image:$('video')})}catch(error){status('姿态识别失败：'+error.message);stop();return}
+  if(active)frame=requestAnimationFrame(loop);
+}
+function stop(){
+  active=false;cancelAnimationFrame(frame);
+  stream?.getTracks().forEach(t=>t.stop());stream=undefined;
+  socket?.close();socket=undefined;
+  pose?.close();pose=undefined;
+  $('start').disabled=false;$('stop').disabled=true;
+}
+$('stop').onclick=()=>{stop();status('已停止')};
+$('start').onclick=async()=>{
+  if(!window.isSecureContext){status('摄像头需要 HTTPS 安全上下文');return}
+  const code=$('code').value.trim(),url=$('relay').value.trim();
+  if(!/^[0-9a-f]{32}$/.test(code)){status('请输入电视上的 32 位配对码');return}
+  if(!/^wss:\/\//.test(url)&&!/^ws:\/\/localhost(?::\d+)?(?:\/|$)/.test(url)){status('请输入 wss:// 服务地址（localhost 可使用 ws://）');return}
+  $('start').disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    $('video').srcObject=stream;await $('video').play();
+    const module=await import('https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js');
+    const PoseCtor=module.Pose||globalThis.Pose;
+    if(!PoseCtor)throw new Error('MediaPipe Pose 加载失败');
+    pose=new PoseCtor({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+file});
+    pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    pose.onResults(onResults);
+    socket=new WebSocket(url);
+    socket.onopen=()=>socket.send(JSON.stringify({type:'join',code}));
+    socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='joined'){status('已连接，开始识别');active=true;$('stop').disabled=false;loop()}else if(msg.type==='error')status('连接失败：'+msg.message);else if(msg.type==='disconnected'){status('电视已断开');stop()}};
+    socket.onclose=()=>{if(active){status('连接中断');stop()}};
+    socket.onerror=()=>status('WebSocket 连接错误');
+  }catch(error){status('启动失败：'+error.message);stop()}
+};
+</script></body></html>
