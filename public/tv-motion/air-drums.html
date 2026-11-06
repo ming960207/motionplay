@@ -18,9 +18,10 @@ async function enableAudio(){
   if(!audioContext)audioContext=new (window.AudioContext||window.webkitAudioContext)();
   await audioContext.resume();$('audio').textContent='鼓声已开启';
 }
-function hit(action){const id={LEFT:'left',JUMP:'center',RIGHT:'right',DUCK:'center'}[action];if(!id)return;const now=performance.now();if(action===lastAction&&now-lastHit<250)return;lastAction=action;lastHit=now;score++;sound(action);$('score').textContent=score;$(id).classList.add('hit');setTimeout(()=>$(id).classList.remove('hit'),140)}
+function hit(action){const id={LEFT:'left',JUMP:'center',RIGHT:'right',DUCK:'center'}[action];if(!id)return;const now=performance.now();if(action===lastAction)return;if(now-lastHit<180)return;lastAction=action;lastHit=now;score++;sound(action);$('score').textContent=score;$(id).classList.add('hit');setTimeout(()=>$(id).classList.remove('hit'),140)}
 function connect(){ws=new WebSocket(endpoint);ws.onopen=()=>ws.send(JSON.stringify({type:'create'}));ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机配对'}else if(m.type==='connected'){connected=true;lastAction='NEUTRAL';$('status').textContent='已连接'}else if(m.type==='disconnected'){connected=false;lastAction='NEUTRAL';$('status').textContent='手机已断开'}else if(m.type==='motion'&&connected){if(m.action==='NEUTRAL')lastAction='NEUTRAL';else hit(m.action)}else if(m.type==='error')$('status').textContent=m.message};ws.onclose=()=>{connected=false;$('status').textContent='服务已断开'}}
 $('reset').onclick=()=>{score=0;lastAction='NEUTRAL';$('score').textContent='0'};
 $('audio').onclick=()=>enableAudio().catch(error=>$('status').textContent='音频启动失败：'+error.message);
-document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')hit('LEFT');if(e.key==='ArrowRight')hit('RIGHT');if(e.key==='ArrowUp')hit('JUMP');if(e.key==='Enter'&&!audioContext)enableAudio().catch(error=>$('status').textContent=error.message)});connect();
+document.addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='ArrowLeft')hit('LEFT');if(e.key==='ArrowRight')hit('RIGHT');if(e.key==='ArrowUp')hit('JUMP');if(e.key==='Enter'&&!audioContext)enableAudio().catch(error=>$('status').textContent=error.message)});
+document.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','ArrowUp'].includes(e.key))lastAction='NEUTRAL'});connect();
 </script></html>
