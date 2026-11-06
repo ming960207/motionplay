@@ -21,7 +21,7 @@ button{font:inherit;color:#fff;background:#275777;border:1px solid #6d99b5;borde
 <footer><div>配对码：<code id="code">—</code><div>手机打开 /tv-motion/phone-camera.html</div></div><button id="start">开始 / 重试（OK）</button></footer>
 <script>
 const $=id=>document.getElementById(id);
-const endpoint=new URLSearchParams(location.search).get('relay')||'ws://'+location.hostname+':8787';
+const endpoint=new URLSearchParams(location.search).get('relay')||(location.protocol==='https:'?'wss://'+location.host+'/motion-ws':'ws://'+location.hostname+':8787');
 let socket,connected=false,playing=false,score=0,best=0,obstacleX=1.1,last=0,jumpUntil=0,duckUntil=0,obstacleHigh=false,passed=false,spawn=0;
 function announce(message){$('message').textContent=message}
 function connect(){
