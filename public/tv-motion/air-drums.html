@@ -23,10 +23,13 @@ async function enableAudio(){
 }
 
 function analyze(buffer){
-  const data=buffer.getChannelData(0),hop=1024,rate=buffer.sampleRate,energy=[];
+  const data=buffer.getChannelData(0),hop=1024,rate=buffer.sampleRate,energy=[],lowEnergy=[],highEnergy=[];
   for(let i=0;i<data.length;i+=hop){
-    let sum=0,n=0;for(let j=i;j<Math.min(i+hop,data.length);j+=4){sum+=data[j]*data[j];n++}
-    energy.push(Math.sqrt(sum/n));
+    let sum=0,low=0,high=0,n=0,previous=data[i]||0;
+    for(let j=i;j<Math.min(i+hop,data.length);j+=4){
+      const v=data[j],diff=v-previous;sum+=v*v;low+=v*v;high+=diff*diff;previous=v;n++;
+    }
+    energy.push(Math.sqrt(sum/n));lowEnergy.push(Math.sqrt(low/n));highEnergy.push(Math.sqrt(high/n));
   }
   const peaks=[],gap=Math.round(rate*.3/hop);
   for(let i=6;i<energy.length-6;i++){
@@ -35,7 +38,9 @@ function analyze(buffer){
     if(novelty<Math.max(.008,mean/13*1.8)||novelty<Math.max(0,energy[i-1]-energy[i-5]))continue;
     const t=i*hop/rate;if(t<.4||t>buffer.duration-.2)continue;
     if(peaks.length&&t-peaks[peaks.length-1]<gap*hop/rate)continue;
-    peaks.push(t);
+    const low=Math.max(0,lowEnergy[i]-lowEnergy[i-4]);
+    const high=Math.max(0,highEnergy[i]-highEnergy[i-4]);
+    peaks.push({time:t,low,high});
   }
   return peaks.slice(0,2000);
 }
@@ -58,14 +63,16 @@ function drawBeat(){
     if(!note.element){note.element=document.createElement('div');note.element.className='note';note.element.style.left=(note.lane*33.333+7.16)+'%';visible.append(note.element)}
     note.element.style.top=(5+(1-(note.time-t)/2.2)*79)+'%';
   }
-  for(const note of chart){if(note.element&&(note.judged||note.time<t-.24)){note.element.remove();note.element=null}}
+  for(let i=Math.max(0,beatIndex-4);i<Math.min(chart.length,beatIndex+100);i++){
+    const note=chart[i];if(note.element&&(note.judged||note.time<t-.24)){note.element.remove();note.element=null}
+  }
   $('pulse').style.width=Math.max(0,Math.min(100,(1-delta/1.5)*100))+'%';
   animation=requestAnimationFrame(drawBeat);
 }
 async function playSong(){
   if(!songBuffer)throw new Error('请先选择歌曲');
   await enableAudio();stopSong();score=0;combo=0;best=0;lastHit=0;lastAction='NEUTRAL';$('score').textContent='0';$('combo').textContent='0';$('best').textContent='0';judgementOffset=Number($('offset').value);beatIndex=0;beatHits=0;misses=0;const step={easy:3,normal:2,hard:1}[$('difficulty').value];
-  chart=beats.filter((_,i)=>i%step===0).map((time,i)=>({time,lane:i%3,judged:false,element:null}));$('accuracy').textContent='0';
+  chart=beats.filter((_,i)=>i%step===0).map((beat,i)=>({time:beat.time,lane:beat.low>beat.high*1.2?1:(beat.high>beat.low*1.5?2:0),judged:false,element:null}));$('accuracy').textContent='0';
   songSource=audioContext.createBufferSource();songSource.buffer=songBuffer;songSource.connect(audioContext.destination);
   songStart=audioContext.currentTime+.1;songSource.start(songStart);
   const playingSource=songSource;
@@ -78,7 +85,7 @@ async function playSong(){
     $('feedback').textContent='结算 '+grade+' · 准确率 '+accuracy+'% · 命中 '+beatHits+' · 漏击 '+misses+' · 最高连击 '+best;
     $('status').textContent='歌曲结束，可按 OK 重玩';
   };
-  $('feedback').textContent='跟随节奏条击鼓';drawBeat();
+  $('feedback').textContent='跟随三轨音符击鼓';drawBeat();
 }
 $('file').onchange=async()=>{
   const file=$('file').files[0];if(!file)return;
@@ -113,7 +120,7 @@ function hit(action){
       const note=chart[i];if(note.judged||note.lane!==lane)continue;
       const d=Math.abs(note.time-t);if(d<distance){distance=d;closest=i}
     }
-    if(closest<0){combo=0;lastHit=now;$('feedback').textContent='MISS · 鼓位或时机错误';$('combo').textContent='0';return}
+    if(closest<0){combo=0;lastHit=now;$('feedback').textContent='MISS · 鼓位或时机错误';$('combo').textContent='0';sound(action);return}
     chart[closest].judged=true;if(chart[closest].element){chart[closest].element.remove();chart[closest].element=null}beatHits++;$('accuracy').textContent=beatHits;
     score+=distance<.09?100:60;
     $('feedback').textContent=distance<.09?'PERFECT':'GOOD';
