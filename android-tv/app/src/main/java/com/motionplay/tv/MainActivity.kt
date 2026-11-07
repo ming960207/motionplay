@@ -39,8 +39,13 @@ class MainActivity : Activity() {
             ): Boolean {
                 completeFileChooser(null)
                 this@MainActivity.fileChooserCallback = filePathCallback
+                val intent = fileChooserParams.createIntent()
+                if (intent.resolveActivity(packageManager) == null) {
+                    showLocalAudioPicker()
+                    return true
+                }
                 return try {
-                    startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_REQUEST)
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST)
                     true
                 } catch (error: ActivityNotFoundException) {
                     showLocalAudioPicker()
