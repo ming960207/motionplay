@@ -14,6 +14,7 @@
 ## 配对服务
 - `node tools/tv-motion/server.mjs` 在 8787 端口同时提供游戏大厅、`phone-camera.html` 和 WebSocket relay；页面 URL 为 `/`、`/tv.html`、`/air-drums.html`、`/phone-camera.html`，relay 接受 `/` 和 `/motion-ws`。
 - 电视和手机必须加入同一配对房间。手机摄像头页面须由可信 HTTPS 加载，并使用 WSS 连接同一 relay；仅在局域网使用 HTTP 时，摄像头权限通常不可用。
+- 局域网 TLS 模式使用 `TLS_CERT`、`TLS_KEY`、`TLS_CA_CERT`、`PORT` 和 `CA_PORT` 启动服务。`/motionplay-local-ca.crt` 只通过独立 HTTP 端口提供 CA 公钥证书，供 Android 手机安装；服务器私钥必须留在本机。Android TV debug APK 在应用范围内信任项目的本地 CA，不需要更改电视系统证书库。手机安装 CA 后，电视和手机都访问相同 HTTPS 主机；电视从服务端显示配对码，手机打开 `/phone-camera.html` 后输入该码。
 - 配对码为 128 位随机值，relay 对配对房间、动作速率和消息序号有限制。公网临时隧道仅在用户选择后启动，并在体验结束后关闭。
 
 ## 编译前检查

@@ -1,7 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { randomBytes } from 'node:crypto'
-import { createServer } from 'node:http'
+import { createServer as createHttpServer } from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 import { readFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,7 +17,7 @@ const contentTypes = new Map([
   ['.json', 'application/json; charset=utf-8'], ['.png', 'image/png'],
   ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.svg', 'image/svg+xml']
 ])
-const http = createServer(async (request, response) => {
+const servePage = async (request, response) => {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.writeHead(405, { 'Allow': 'GET, HEAD' }).end()
     return
@@ -42,9 +44,16 @@ const http = createServer(async (request, response) => {
     const status = error.code === 'ENOENT' || error.code === 'EISDIR' ? 404 : 500
     response.writeHead(status).end()
   }
-})
+}
+const tlsCert = process.env.TLS_CERT
+const tlsKey = process.env.TLS_KEY
+if (Boolean(tlsCert) !== Boolean(tlsKey)) throw new Error('Set both TLS_CERT and TLS_KEY')
+const secure = Boolean(tlsCert)
+const server = secure
+  ? createHttpsServer({ cert: readFileSync(tlsCert), key: readFileSync(tlsKey) }, servePage)
+  : createHttpServer(servePage)
 const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 })
-http.on('upgrade', (request, socket, head) => {
+server.on('upgrade', (request, socket, head) => {
   let pathname
   try { pathname = new URL(request.url, 'http://localhost').pathname }
   catch { socket.destroy(); return }
@@ -129,4 +138,31 @@ const expiryTimer = setInterval(() => {
 }, 30_000)
 expiryTimer.unref()
 
-http.listen(port, host, () => console.log(`MotionPlay web and relay listening on ${host}:${port}`))
+server.listen(port, host, () => console.log(`MotionPlay ${secure ? 'HTTPS' : 'HTTP'} web and relay listening on ${host}:${port}`))
+
+if (secure && process.env.TLS_CA_CERT) {
+  const caCert = process.env.TLS_CA_CERT
+  const caPort = Number(process.env.CA_PORT ?? 8787)
+  if (!Number.isSafeInteger(caPort) || caPort < 1 || caPort > 65535 || caPort === port) throw new Error('Invalid CA_PORT')
+  createHttpServer(async (request, response) => {
+    let pathname
+    try { pathname = new URL(request.url, 'http://localhost').pathname }
+    catch { response.writeHead(400).end(); return }
+    if (request.method !== 'GET' || pathname !== '/motionplay-local-ca.crt') {
+      response.writeHead(404).end()
+      return
+    }
+    try {
+      const body = await readFile(caCert)
+      response.writeHead(200, {
+        'Content-Type': 'application/x-x509-ca-cert',
+        'Content-Length': body.length,
+        'Content-Disposition': 'attachment; filename="motionplay-local-ca.crt"',
+        'X-Content-Type-Options': 'nosniff'
+      })
+      response.end(body)
+    } catch {
+      response.writeHead(500).end()
+    }
+  }).listen(caPort, host, () => console.log(`Local CA download available on http://${host}:${caPort}/motionplay-local-ca.crt`))
+}
