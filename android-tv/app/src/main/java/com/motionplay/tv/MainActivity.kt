@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import android.view.KeyEvent
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -178,6 +179,9 @@ class MainActivity : Activity() {
     private fun completeFileChooser(uris: Array<Uri>?) {
         val callback = fileChooserCallback ?: return
         fileChooserCallback = null
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            Log.d("MotionPlayTV", "File chooser completed with ${uris?.size ?: 0} URI(s)")
+        }
         callback.onReceiveValue(uris)
     }
 
