@@ -1,20 +1,25 @@
 package com.motionplay.tv
 
+import android.Manifest
 import android.app.Activity
-import android.os.Bundle
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceError
-import android.widget.Toast
-import android.widget.EditText
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
+import android.content.ContentUris
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
+import android.os.Build
+import android.provider.MediaStore
 import android.view.KeyEvent
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.EditText
+import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -31,16 +36,14 @@ class MainActivity : Activity() {
                 filePathCallback: ValueCallback<Array<Uri>>,
                 fileChooserParams: FileChooserParams
             ): Boolean {
-                this@MainActivity.fileChooserCallback?.onReceiveValue(null)
+                completeFileChooser(null)
                 this@MainActivity.fileChooserCallback = filePathCallback
                 return try {
                     startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_REQUEST)
                     true
                 } catch (error: ActivityNotFoundException) {
-                    this@MainActivity.fileChooserCallback = null
-                    filePathCallback.onReceiveValue(null)
-                    Toast.makeText(this@MainActivity, "未找到可用的文件选择器", Toast.LENGTH_LONG).show()
-                    false
+                    showLocalAudioPicker()
+                    true
                 }
             }
         }
@@ -92,21 +95,100 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == FILE_CHOOSER_REQUEST) {
-            fileChooserCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
-            fileChooserCallback = null
+            completeFileChooser(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
             return
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
 
-    override fun onDestroy() {
-        fileChooserCallback?.onReceiveValue(null)
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != AUDIO_PERMISSION_REQUEST) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            showLocalAudioPicker()
+        } else {
+            completeFileChooser(null)
+            Toast.makeText(this, "需要允许访问音频才能选择本地歌曲", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showLocalAudioPicker() {
+        val permission = if (Build.VERSION.SDK_INT >= 33 && applicationInfo.targetSdkVersion >= 33) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(permission), AUDIO_PERMISSION_REQUEST)
+            return
+        }
+
+        try {
+            val songs = mutableListOf<Pair<Uri, String>>()
+            val projection = arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.ARTIST
+            )
+            contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                while (cursor.moveToNext()) {
+                    val title = cursor.getString(titleColumn)?.takeIf { it.isNotBlank() }
+                        ?: cursor.getString(nameColumn)
+                        ?: "未命名音频"
+                    val artist = cursor.getString(artistColumn)?.takeIf { it.isNotBlank() && it != "<unknown>" }
+                    val label = if (artist == null) title else "$title · $artist"
+                    val uri = ContentUris.withAppendedId(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        cursor.getLong(idColumn)
+                    )
+                    songs += uri to label
+                }
+            }
+
+            if (songs.isEmpty()) {
+                completeFileChooser(null)
+                Toast.makeText(this, "电视媒体库中没有可选歌曲", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("选择本地歌曲")
+                .setItems(songs.map { it.second }.toTypedArray()) { _, index ->
+                    completeFileChooser(arrayOf(songs[index].first))
+                }
+                .setOnCancelListener { completeFileChooser(null) }
+                .show()
+        } catch (error: SecurityException) {
+            completeFileChooser(null)
+            Toast.makeText(this, "无法读取电视媒体库，请检查音频权限", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun completeFileChooser(uris: Array<Uri>?) {
+        val callback = fileChooserCallback ?: return
         fileChooserCallback = null
+        callback.onReceiveValue(uris)
+    }
+
+    override fun onDestroy() {
+        completeFileChooser(null)
         webView.destroy()
         super.onDestroy()
     }
 
     private companion object {
         const val FILE_CHOOSER_REQUEST = 1001
+        const val AUDIO_PERMISSION_REQUEST = 1002
     }
 }

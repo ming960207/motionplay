@@ -3,6 +3,7 @@
 # https://threejs-games.github.io/
 # dependencies
 /node_modules
+**/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -20,6 +21,8 @@
 
 # production
 /build
+/android-tv/.gradle/
+/android-tv/**/build/
 
 # misc
 .DS_Store
