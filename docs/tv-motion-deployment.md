@@ -29,7 +29,7 @@ location /motion-ws {
 
 手机打开 `https://YOUR_HOST/tv-motion/phone-camera.html`，填写电视屏幕配对码。默认 WebSocket 地址为 `wss://YOUR_HOST/motion-ws`，也可以手动填写其他 WSS 地址。
 
-电视打开 `https://YOUR_HOST/tv-motion/index.html`。**当前电视游戏页默认连接 `ws://HOST:8787`，在 HTTPS 电视页面会被浏览器阻止。** 在 TV 游戏地址上添加 `?relay=wss%3A%2F%2FYOUR_HOST%2Fmotion-ws`，或部署后进一步统一默认连接地址。
+电视打开 `https://YOUR_HOST/tv-motion/index.html`。HTTPS 下，电视游戏页和手机摄像头页默认都连接 `wss://YOUR_HOST/motion-ws`，因此反向代理必须把该路径转发到同一个 relay 并启用 WebSocket Upgrade。电视页若通过局域网 HTTP 访问，会默认连接 `ws://HOST:8787`；手机摄像头页仍须通过 HTTPS 打开，并填写指向同一 relay 的 WSS 地址。使用其他 relay 时，在电视游戏地址添加 `?relay=wss%3A%2F%2FYOUR_HOST%2Fmotion-ws`，并在手机页填写同一地址。
 
 ## 尚未通过验收
 
