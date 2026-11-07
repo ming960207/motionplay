@@ -25,9 +25,10 @@ async function enableAudio(){
 function analyze(buffer){
   const data=buffer.getChannelData(0),hop=1024,rate=buffer.sampleRate,energy=[],lowEnergy=[],highEnergy=[];
   for(let i=0;i<data.length;i+=hop){
-    let sum=0,low=0,high=0,n=0,previous=data[i]||0;
+    let sum=0,low=0,high=0,n=0,previous=data[i]||0,smoothed=0;
     for(let j=i;j<Math.min(i+hop,data.length);j+=4){
-      const v=data[j],diff=v-previous;sum+=v*v;low+=v*v;high+=diff*diff;previous=v;n++;
+      const v=data[j];smoothed+=.15*(v-smoothed);
+      const diff=v-previous;sum+=v*v;low+=smoothed*smoothed;high+=diff*diff;previous=v;n++;
     }
     energy.push(Math.sqrt(sum/n));lowEnergy.push(Math.sqrt(low/n));highEnergy.push(Math.sqrt(high/n));
   }
@@ -72,7 +73,7 @@ function drawBeat(){
 async function playSong(){
   if(!songBuffer)throw new Error('请先选择歌曲');
   await enableAudio();stopSong();score=0;combo=0;best=0;lastHit=0;lastAction='NEUTRAL';$('score').textContent='0';$('combo').textContent='0';$('best').textContent='0';judgementOffset=Number($('offset').value);beatIndex=0;beatHits=0;misses=0;const step={easy:3,normal:2,hard:1}[$('difficulty').value];
-  chart=beats.filter((_,i)=>i%step===0).map((beat,i)=>({time:beat.time,lane:beat.low>beat.high*1.2?1:(beat.high>beat.low*1.5?2:0),judged:false,element:null}));$('accuracy').textContent='0';
+  chart=beats.filter((_,i)=>i%step===0).map(beat=>({time:beat.time,lane:beat.low>beat.high*.7?1:(beat.high>beat.low*2?2:0),judged:false,element:null}));$('accuracy').textContent='0';
   songSource=audioContext.createBufferSource();songSource.buffer=songBuffer;songSource.connect(audioContext.destination);
   songStart=audioContext.currentTime+.1;songSource.start(songStart);
   const playingSource=songSource;
@@ -116,7 +117,7 @@ function hit(action){
     const t=audioContext.currentTime-songStart+judgementOffset;
     const lane={LEFT:0,JUMP:1,DUCK:1,RIGHT:2}[action];
     let closest=-1,distance=.22;
-    for(let i=Math.max(0,beatIndex-1);i<Math.min(chart.length,beatIndex+5);i++){
+    for(let i=Math.max(0,beatIndex-1);i<chart.length&&chart[i].time<=t+.22;i++){
       const note=chart[i];if(note.judged||note.lane!==lane)continue;
       const d=Math.abs(note.time-t);if(d<distance){distance=d;closest=i}
     }
@@ -137,7 +138,7 @@ function hit(action){
 function connect(){ws=new WebSocket(endpoint);ws.onopen=()=>ws.send(JSON.stringify({type:'create'}));ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='created'){$('code').textContent=m.code;$('status').textContent='等待手机配对'}else if(m.type==='connected'){connected=true;lastAction='NEUTRAL';$('status').textContent='已连接'}else if(m.type==='disconnected'){connected=false;lastAction='NEUTRAL';combo=0;$('combo').textContent='0';$('status').textContent='手机已断开'}else if(m.type==='motion'&&connected){if(m.action==='NEUTRAL')lastAction='NEUTRAL';else hit(m.action)}else if(m.type==='error')$('status').textContent=m.message};ws.onclose=()=>{connected=false;lastAction='NEUTRAL';combo=0;$('combo').textContent='0';$('status').textContent='服务已断开'}}
 $('reset').onclick=()=>{score=0;combo=0;best=0;lastHit=0;lastAction='NEUTRAL';$('score').textContent='0';$('combo').textContent='0';$('best').textContent='0';$('feedback').textContent='成绩已重置'};
 $('audio').onclick=()=>enableAudio().catch(error=>$('status').textContent='音频启动失败：'+error.message);
-document.addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='ArrowLeft'){e.preventDefault();hit('LEFT')}if(e.key==='ArrowRight'){e.preventDefault();hit('RIGHT')}if(e.key==='ArrowUp'){e.preventDefault();hit('JUMP')}if(e.key==='Enter'){e.preventDefault();if(songBuffer)playSong().catch(error=>$('status').textContent=error.message);else enableAudio().catch(error=>$('status').textContent=error.message)}});
+document.addEventListener('keydown',e=>{if(e.repeat)return;if(['INPUT','SELECT','BUTTON'].includes(document.activeElement?.tagName)&&e.key==='Enter')return;if(e.key==='ArrowLeft'){e.preventDefault();hit('LEFT')}if(e.key==='ArrowRight'){e.preventDefault();hit('RIGHT')}if(e.key==='ArrowUp'){e.preventDefault();hit('JUMP')}if(e.key==='Enter'){e.preventDefault();if(songBuffer)playSong().catch(error=>$('status').textContent=error.message);else enableAudio().catch(error=>$('status').textContent=error.message)}});
 document.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','ArrowUp'].includes(e.key))lastAction='NEUTRAL'});
 setInterval(()=>{if(!songSource&&combo&&performance.now()-lastHit>2000){combo=0;$('combo').textContent='0';$('feedback').textContent='等待下一次击鼓'}},250);
 connect();
