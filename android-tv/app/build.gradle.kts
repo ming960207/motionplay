@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.motionplay.tv"
     compileSdk = 35
+    sourceSets["main"].assets.srcDir("../../public/tv-motion")
     defaultConfig {
         applicationId = "com.motionplay.tv"
         minSdk = 23

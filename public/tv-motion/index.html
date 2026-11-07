@@ -1,5 +1,33 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MotionPlay TV 游戏大厅</title>
-<style>body{margin:0;background:#0b1628;color:#f3f8ff;font:20px system-ui;padding:6vh 6vw}h1{font-size:clamp(28px,4vw,56px)}p{color:#a9c2d6}main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3vw;margin-top:6vh}a{display:block;background:#17334f;color:#fff;text-decoration:none;border:2px solid #416d8c;border-radius:18px;padding:5vh 3vw;font-size:clamp(22px,3vw,42px)}a:focus{outline:5px solid #9fe9d1}small{display:block;font-size:16px;color:#a9c2d6;margin-top:12px}</style>
-<h1>MotionPlay · 电视游戏大厅</h1><p>遥控器方向键选择游戏，OK 确认。进入游戏后使用手机配对。</p>
-<main><a href="tv.html">Jump Duck<small>跳跃 / 下蹲躲避障碍</small></a><a href="air-drums.html">Air Drums<small>左右动作 / 跳跃打鼓</small></a></main>
-<script>document.querySelector('a')?.focus()</script></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MotionPlay TV 游戏大厅</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:#0b1628;color:#f3f8ff;font:clamp(18px,1.8vw,24px) system-ui;padding:7vh 7vw}
+    header{display:flex;align-items:center;justify-content:space-between;gap:3vw}
+    h1{font-size:clamp(30px,4vw,56px);margin:0}
+    #mode{padding:10px 16px;border:1px solid #416d8c;border-radius:999px;color:#9fe9d1;font-size:clamp(14px,1.3vw,18px);white-space:nowrap}
+    p{color:#a9c2d6;margin:2vh 0 0}
+    main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3vw;margin-top:7vh}
+    a{display:flex;min-height:31vh;flex-direction:column;justify-content:center;background:#17334f;color:#fff;text-decoration:none;border:2px solid #416d8c;border-radius:18px;padding:4vh 3vw;font-size:clamp(26px,3.2vw,44px);transition:border-color .15s,transform .15s}
+    a:focus-visible{outline:5px solid #9fe9d1;outline-offset:4px;border-color:#9fe9d1;transform:translateY(-2px)}
+    small{display:block;font-size:clamp(16px,1.4vw,19px);color:#a9c2d6;margin-top:14px}
+    footer{margin-top:5vh;color:#a9c2d6;font-size:clamp(15px,1.35vw,18px)}
+    @media(max-width:760px){body{padding:5vh 5vw}main{grid-template-columns:1fr;margin-top:4vh}a{min-height:23vh}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+  </style>
+</head>
+<body>
+  <header><h1>MotionPlay · 电视游戏大厅</h1><div id="mode">内置游戏 · 离线可玩</div></header>
+  <p>方向键选择游戏，按 OK 进入。无需联网；手机体感服务可稍后配置。</p>
+  <main>
+    <a href="tv.html">Jump Duck<small>跳跃与下蹲躲避障碍 · 支持暂停和继续</small></a>
+    <a href="air-drums.html">Air Drums<small>播放电视本地歌曲，跟随节奏击鼓</small></a>
+  </main>
+  <footer>手机摄像头体感需要可访问的 HTTPS 页面和 WSS 配对服务。</footer>
+  <script>document.querySelector('a')?.focus()</script>
+</body>
+</html>

@@ -64,25 +64,29 @@ class MainActivity : Activity() {
         webView.isFocusableInTouchMode = true
         setContentView(webView)
         val address = getPreferences(MODE_PRIVATE).getString("tv_url", null)
-        if (address == null) configureServer() else webView.loadUrl(address)
+        webView.loadUrl(address ?: LOCAL_LOBBY_URL)
     }
 
     private fun configureServer() {
         val field = EditText(this)
         field.setSingleLine()
-        field.setText(getPreferences(MODE_PRIVATE).getString("tv_url", "http://192.168.1.100:3000/tv-motion/index.html"))
+        field.setText(getPreferences(MODE_PRIVATE).getString("tv_url", ""))
+        field.hint = "https://example.com/tv-motion/index.html"
         AlertDialog.Builder(this)
-            .setTitle("输入 MotionPlay 服务地址")
+            .setTitle("连接手机体感服务")
             .setView(field)
-            .setCancelable(false)
             .setPositiveButton("连接") { _, _ ->
                 val value = field.text.toString().trim()
                 if (!value.startsWith("http://") && !value.startsWith("https://")) {
-                    configureServer()
+                    Toast.makeText(this, "请输入 http:// 或 https:// 服务地址", Toast.LENGTH_LONG).show()
                 } else {
                     getPreferences(MODE_PRIVATE).edit().putString("tv_url", value).apply()
                     webView.loadUrl(value)
                 }
+            }
+            .setNegativeButton("使用内置游戏") { _, _ ->
+                getPreferences(MODE_PRIVATE).edit().remove("tv_url").apply()
+                webView.loadUrl(LOCAL_LOBBY_URL)
             }
             .show()
     }
@@ -197,6 +201,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        const val LOCAL_LOBBY_URL = "file:///android_asset/index.html"
         const val FILE_CHOOSER_REQUEST = 1001
         const val AUDIO_PERMISSION_REQUEST = 1002
     }
