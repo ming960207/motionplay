@@ -28,21 +28,24 @@ function nextMessage(ws, timeout = 2000) {
     ws.on('message', handler); ws.on('error', error)
   })
 }
-async function connect() {
-  const ws = new WebSocket('ws://127.0.0.1:' + port)
+async function connect(path = '/') {
+  const ws = new WebSocket('ws://127.0.0.1:' + port + path)
   await once(ws, 'open')
   return ws
 }
 test('pairing, motion forwarding, replay rejection and disconnect', async t => {
   t.after(() => server.kill())
   await waitReady()
-  const tv = await connect()
+  const phonePage = await fetch('http://127.0.0.1:' + port + '/phone-camera.html')
+  assert.equal(phonePage.status, 200)
+  assert.match(await phonePage.text(), /MotionPlay 摄像头体感控制/)
+  const tv = await connect('/')
   t.after(() => tv.close())
   const created = nextMessage(tv)
   tv.send(JSON.stringify({ type: 'create' }))
   const room = await created
   assert.match(room.code, /^[0-9a-f]{32}$/)
-  const phone = await connect()
+  const phone = await connect('/motion-ws')
   t.after(() => phone.close())
   const joined = nextMessage(phone)
   const connected = nextMessage(tv)

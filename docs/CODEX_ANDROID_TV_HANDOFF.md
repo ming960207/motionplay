@@ -11,6 +11,11 @@
 - `android-tv/`：Android TV WebView 壳
 - `.github/workflows/android-tv-motion.yml`：编译工作流
 
+## 配对服务
+- `node tools/tv-motion/server.mjs` 在 8787 端口同时提供游戏大厅、`phone-camera.html` 和 WebSocket relay；页面 URL 为 `/`、`/tv.html`、`/air-drums.html`、`/phone-camera.html`，relay 接受 `/` 和 `/motion-ws`。
+- 电视和手机必须加入同一配对房间。手机摄像头页面须由可信 HTTPS 加载，并使用 WSS 连接同一 relay；仅在局域网使用 HTTP 时，摄像头权限通常不可用。
+- 配对码为 128 位随机值，relay 对配对房间、动作速率和消息序号有限制。公网临时隧道仅在用户选择后启动，并在体验结束后关闭。
+
 ## 编译前检查
 1. 检查 Gradle、JDK、Android SDK 版本与 GitHub Actions 兼容性；仅在分支内修复。
 2. 确认 WebView 的页面地址与本地 HTTP 服务地址一致；检查 Android TV 网络权限、HTTP 明文访问策略。

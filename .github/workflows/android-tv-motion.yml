@@ -5,6 +5,7 @@ on:
     paths:
       - 'android-tv/**'
       - 'public/tv-motion/**'
+      - 'tools/tv-motion/**'
       - '.github/workflows/android-tv-motion.yml'
   workflow_dispatch:
 jobs:

@@ -1,9 +1,60 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { randomBytes } from 'node:crypto'
+import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { extname, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const port = Number(process.env.PORT ?? 8787)
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT')
-const wss = new WebSocketServer({ port, maxPayload: 2048 })
+const host = process.env.HOST ?? '0.0.0.0'
+const publicDir = resolve(fileURLToPath(new URL('../../public/tv-motion/', import.meta.url)))
+const contentTypes = new Map([
+  ['.html', 'text/html; charset=utf-8'], ['.js', 'text/javascript; charset=utf-8'],
+  ['.css', 'text/css; charset=utf-8'], ['.wasm', 'application/wasm'],
+  ['.json', 'application/json; charset=utf-8'], ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.svg', 'image/svg+xml']
+])
+const http = createServer(async (request, response) => {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    response.writeHead(405, { 'Allow': 'GET, HEAD' }).end()
+    return
+  }
+  let pathname
+  try { pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname) }
+  catch { response.writeHead(400).end(); return }
+  const relative = (pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, ''))
+  const file = resolve(publicDir, relative)
+  if (file !== publicDir && !file.startsWith(publicDir + sep)) {
+    response.writeHead(404).end()
+    return
+  }
+  try {
+    const body = await readFile(file)
+    response.writeHead(200, {
+      'Content-Type': contentTypes.get(extname(file).toLowerCase()) ?? 'application/octet-stream',
+      'Content-Length': body.length,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
+    })
+    response.end(request.method === 'HEAD' ? undefined : body)
+  } catch (error) {
+    const status = error.code === 'ENOENT' || error.code === 'EISDIR' ? 404 : 500
+    response.writeHead(status).end()
+  }
+})
+const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 })
+http.on('upgrade', (request, socket, head) => {
+  let pathname
+  try { pathname = new URL(request.url, 'http://localhost').pathname }
+  catch { socket.destroy(); return }
+  if (pathname !== '/' && pathname !== '/motion-ws') {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
+    socket.destroy()
+    return
+  }
+  wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request))
+})
 const rooms = new Map()
 const MAX_ROOMS = 100
 const MAX_MOTION_PER_SECOND = 30
@@ -78,4 +129,4 @@ const expiryTimer = setInterval(() => {
 }, 30_000)
 expiryTimer.unref()
 
-console.log(`MotionPlay relay listening on port ${port}`)
+http.listen(port, host, () => console.log(`MotionPlay web and relay listening on ${host}:${port}`))
