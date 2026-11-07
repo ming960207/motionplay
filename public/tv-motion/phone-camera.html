@@ -25,7 +25,7 @@ video{width:100%;max-height:55vh;object-fit:contain;background:#000;transform:sc
 <p>站姿标定：<progress id="calibration-progress" max="45" value="0"></progress></p>
 <small>请将全身放入画面，保持站立约 2 秒完成标定。身体整体向上移动触发 JUMP，下蹲触发 DUCK，左右倾斜触发 LEFT/RIGHT。摄像头位置固定，避免移动手机；该算法仍需实机验证。</small>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
+<script src="vendor/mediapipe/pose/pose.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let socket,stream,pose,frame=0,sequence=0,active=false,session=0,poseMissingFrames=0,lastAction='NEUTRAL',lastSent=0,stableAction='NEUTRAL',candidate='NEUTRAL',candidateCount=0,baselineHip=null,baselineTorso=null,calibration=[],lastJumpAt=0,jumpArmed=true,baselineKneeRatio=null;
@@ -136,7 +136,7 @@ $('start').onclick=async()=>{
     if(token!==session)return;
     const PoseCtor=globalThis.Pose;
     if(!PoseCtor)throw new Error('MediaPipe Pose 加载失败');
-    pose=new PoseCtor({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+file});
+    pose=new PoseCtor({locateFile:file=>'vendor/mediapipe/pose/'+file});
     pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
     pose.onResults(onResults);
     socket=new WebSocket(url);
